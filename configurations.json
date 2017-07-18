@@ -1,14 +1,8 @@
 [
   {
-    "Classification": "spark-log4j",
+    "Classification": "spark",
     "Properties": {
-      "log4j.appender.console.target": "System.err",
-      "log4j.appender.console.layout": "org.apache.log4j.EnhancedPatternLayout",
-      "log4j.appender.console.layout.ConversionPattern": "%d{yyyy-MM-dd HH:mm:ss.SSSZ}{America/Chicago} logLevel=%level thread=%t logger=%logger - %m%n",
-      "log4j.logger.org.spark-project": "WARN",
-      "log4j.logger.org.apache.spark": "WARN",
-      "log4j.logger.org.apache.hadoop.io": "WARN",
-      "log4j.logger.com.amazon.ws.emr.hadoop.fs": "WARN"
+      "maximizeResourceAllocation": "true"
     }
   }
 ]
