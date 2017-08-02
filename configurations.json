@@ -4,5 +4,11 @@
     "Properties": {
       "maximizeResourceAllocation": "true"
     }
+  },
+  {
+    "Classification": "emrfs-site",
+    "Properties": {
+      "fs.s3.enableServerSideEncryption": "true"
+    }
   }
 ]
