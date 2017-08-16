@@ -10,5 +10,18 @@
     "Properties": {
       "fs.s3.enableServerSideEncryption": "true"
     }
+  },
+  {
+    "Classification": "spark-env",
+    "Configurations": [
+      {
+        "Classification": "export",
+        "Configurations": [],
+        "Properties": {
+          "PYSPARK_PYTHON": "/home/hadoop/sonic_pysparklingwater_env/bin/python"
+        }
+      }
+    ],
+    "Properties": {}
   }
 ]
