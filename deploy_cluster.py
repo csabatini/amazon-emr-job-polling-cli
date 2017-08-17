@@ -54,7 +54,7 @@ def deploy(ctx, env, emr_version, job_name, job_runtime, cluster_name, project, 
     config['profile'] = 'bdp-{}'.format(env.replace('-', '')) if cicd else profiles[env]  # gocd profiles are bdp-{env}
 
     # create the boto clients for this environment
-    s3_client, emr_client = get_clients(config['profile'])
+    s3_client, emr_client = get_clients(None if airflow else config['profile'])
 
     terminate_clusters(emr_client, cluster_name, config)
 
