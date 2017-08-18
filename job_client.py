@@ -41,8 +41,8 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_timeout, cluster_nam
     # add cluster id to the config and log cluster details
     config['cluster_id'] = cluster_info[0]['id']
     cluster_info_json = json.dumps(cluster_info)
-    logging.info("action=get-clusters, count={}, clusterList={}".format(len(cluster_info),
-                                                                        cluster_info_json))
+    logging.info("environment={}, action=get-clusters, count={}, clusterList={}".format(env, len(cluster_info),
+                                                                                        cluster_info_json))
     if poll_steps:  # monitor state of the EMR Steps (Spark Jobs)
         minutes_elapsed = 0
         while minutes_elapsed <= job_timeout:
@@ -50,19 +50,20 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_timeout, cluster_nam
                 ClusterId=config['cluster_id']
             )
             if minutes_elapsed == 0:
-                logging.info("action=list-cluster-steps, clusterId={}, numSteps={}".format(config['cluster_id'],
-                                                                                           len(response['Steps'])))
+                logging.info("environment={}, action=list-cluster-steps, clusterId={}, numSteps={}".format(
+                    env, config['cluster_id'], len(response['Steps']))
+                )
             jobs = [s for s in response['Steps'] if s['Name'] == job_name]
             assert len(jobs) == 1, \
                 "expected one but found {} job(s) with name {}".format(len(job_steps), job_name)
             job_metrics = cluster_step_metrics(jobs[0])
-            logging.info("action=poll-cluster-step, stepId={}, stepName={}, state={}, createdTime={}, minutesElapsed={}"
-                         .format(job_metrics['id'], job_metrics['name'], job_metrics['state'],
-                                 job_metrics['createdTime'], job_metrics['minutesElapsed']))
+            logging.info("environment={}, action=poll-cluster-step, stepId={}, stepName={}, state={}, createdTime={}, "
+                         "minutesElapsed={}".format(env, job_metrics['id'], job_metrics['name'], job_metrics['state'],
+                                                    job_metrics['createdTime'], job_metrics['minutesElapsed']))
             if job_metrics['state'] == 'COMPLETED':
                 terminate_clusters(emr_client, cluster_name, config)
                 sys.exit(0)  # job successfuly
-            elif job_metrics['state'] in ['CANCELLED', 'FAILED', 'INTERRUPTED']:
+            elif job_metrics['state'] == 'FAILED':
                 raise ValueError('Job in unexpected state: {}'.format(job_metrics['state']))
             minutes_elapsed = job_metrics['minutesElapsed']
             time.sleep(60)
