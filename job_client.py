@@ -6,7 +6,7 @@ import time
 import pytz
 from datetime import datetime, timedelta
 from jinja2 import Template
-from awsutils import get_clients, get_emr_cluster_with_name, tokenize_emr_step_args, run_cli_cmd
+from awsutils import profiles, get_clients, get_emr_cluster_with_name, tokenize_emr_step_args, terminate_clusters
 from templates import spark_template
 
 emr_add_step_template = Template('aws emr --profile {{ env }} add-steps --cluster-id {{ cluster_id }} '
@@ -25,12 +25,13 @@ emr_add_step_template = Template('aws emr --profile {{ env }} add-steps --cluste
 @click.option('--artifact_path', help='Amazon S3 path to the Spark artifact.')
 @click.option('--h2o_backend', is_flag=True, help='Indicates that the Spark job uses the H2O backend.')
 @click.option('--poll-steps', is_flag=True, help='Option to describe the state of the steps on a cluster.')
+@click.option('--airflow', is_flag=True, help='Indicator for deployment from airflow; uses EC2 instance role auth.')
 def handle_job_request(ctx, env, job_name, job_runtime, job_timeout, cluster_name,
-                       main_class, artifact_path, h2o_backend, poll_steps):
+                       main_class, artifact_path, h2o_backend, poll_steps, airflow):
     config = ctx.params
-
+    config['profile'] = profiles[env]
     # initialize the aws clients
-    s3_client, emr_client = get_clients(env)
+    s3_client, emr_client = get_clients(None if airflow else profiles[env])
 
     # get existing cluster info
     cluster_info = get_emr_cluster_with_name(emr_client, cluster_name)
@@ -59,6 +60,7 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_timeout, cluster_nam
                          .format(job_metrics['id'], job_metrics['name'], job_metrics['state'],
                                  job_metrics['createdTime'], job_metrics['minutesElapsed']))
             if job_metrics['state'] == 'COMPLETED':
+                terminate_clusters(emr_client, cluster_name, config)
                 sys.exit(0)  # job successfuly
             elif job_metrics['state'] in ['CANCELLED', 'FAILED', 'INTERRUPTED']:
                 raise ValueError('Job in unexpected state: {}'.format(job_metrics['state']))
