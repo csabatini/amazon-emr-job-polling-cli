@@ -56,10 +56,10 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_args, job_timeout, c
         artifact_payload = {'runtime': job_runtime, 'bucket': artifact_parts[0], 'key': artifact_parts[1]}
 
         for ip in private_ips:
-            r = requests.post('http://{}:80/download'.format(ip), json=artifact_payload)
+            r = requests.post('http://{}:8080/download'.format(ip), json=artifact_payload)
             log_msg = "environment={}, cluster={}, job={}, action=download, bucket={}, key={}, ip={}, " \
                       "status_code={}, message={}".format(env, cluster_name, job_name, artifact_parts[0],
-                                                          artifact_parts[1], ip, r.status_code, r.json['message'])
+                                                          artifact_parts[1], ip, r.status_code, r.json()['message'])
             log_assertion(r.status_code == 200, log_msg)
 
         cli_cmd = emr_add_step_template.render(config)
