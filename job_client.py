@@ -26,11 +26,11 @@ emr_add_step_template = Template('aws emr --profile {{ env }} add-steps --cluste
 @click.option('--main-class', help='Main class of the Spark application.')
 @click.option('--artifact-path', help='Amazon S3 path to the Spark artifact.')
 @click.option('--h2o-backend', is_flag=True, help='Indicates that the Spark job uses the H2O backend.')
-@click.option('--poll-steps', is_flag=True, help='Option to describe the state of the steps on a cluster.')
+@click.option('--poll-cluster', is_flag=True, help='Option to poll the cluster for job state (completed/failed).')
 @click.option('--auto-terminate', is_flag=True, help='Terminate the cluster after the Spark job finishes.')
 @click.option('--airflow', is_flag=True, help='Indicator for deployment from airflow; uses EC2 instance role auth.')
 def handle_job_request(ctx, env, job_name, job_runtime, job_args, job_timeout, cluster_name,
-                       main_class, artifact_path, h2o_backend, poll_steps, auto_terminate, airflow):
+                       main_class, artifact_path, h2o_backend, poll_cluster, auto_terminate, airflow):
     config = ctx.params
     config['profile'] = profiles[env]
     # initialize the aws clients
@@ -74,7 +74,7 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_args, job_timeout, c
         log_msg = "environment={}, cluster={}, job={}, action=add-job-step".format(env, cluster_name, job_name)
         log_assertion('StepId' in json.loads(output).keys(), log_msg)
 
-    if poll_steps:  # monitor state of the EMR Steps (Spark Jobs)
+    if poll_cluster:  # monitor state of the EMR Steps (Spark Jobs)
         minutes_elapsed = 0
         while minutes_elapsed <= job_timeout:
             response = emr_client.list_steps(
@@ -87,7 +87,7 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_args, job_timeout, c
                 log_assertion(len(jobs) == 1, log_msg)
 
             job_metrics = cluster_step_metrics(jobs[0])
-            logging.info("environment={}, cluster={}, job={}, action=poll-cluster-step, stepId={}, state={}, "
+            logging.info("environment={}, cluster={}, job={}, action=poll-cluster, stepId={}, state={}, "
                          "createdTime={}, minutesElapsed={}".format(env, cluster_name, job_name, job_metrics['id'],
                                                                     job_metrics['state'],
                                                                     job_metrics['createdTime'],
@@ -100,7 +100,7 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_args, job_timeout, c
                 log_msg = "environment={}, cluster={}, job={}, action=exit-failed-state, stepId={}, state={}".format(
                     env, cluster_name, job_name, job_metrics['id'], job_metrics['state']
                 )
-                log_assertion(job_metrics['state'] == 'FAILED', log_msg)
+                log_assertion(job_metrics['state'] != 'FAILED', log_msg)
             minutes_elapsed = job_metrics['minutesElapsed']
             time.sleep(60)
         log_msg = "environment={}, cluster={}, job={}, action=exceeded-timeout, minutes={}" \
