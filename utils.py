@@ -52,7 +52,7 @@ def log_assertion(condition, message):
         assert condition
         logging.info(message)
     except AssertionError, e:
-        logging.error("exception={}, {}".format(type(e).__name__, message))
+        logging.exception("exception={}, {}".format(type(e).__name__, message))
         raise e
 
 
