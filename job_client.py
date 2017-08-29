@@ -60,13 +60,13 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_args, job_timeout, c
         api_log = "environment={}, cluster={}, job={}, action={}, bucket={}, key={}, ip={}, status_code={}, message={}"
         for ip in private_ips:
             r = requests.post('http://{}:8080/download'.format(ip), json=artifact_payload)
-            log_msg = api_log.format(env, cluster_name, job_name, 'download', artifact_parts[0],
-                                     artifact_parts[1], ip, r.status_code, r.json()['message'])
+            log_msg = api_log.format(env, cluster_name, job_name, 'download', config['artifact_parts'][0],
+                                     config['artifact_parts'][1], ip, r.status_code, r.json()['message'])
             log_assertion(r.status_code == 200, log_msg)
             if job_runtime.lower() == 'python':
                 r = requests.get('http://{}:8080/requirements'.format(ip))
-                log_msg = api_log.format(env, cluster_name, job_name, 'requirements', artifact_parts[0],
-                                         artifact_parts[1], ip, r.status_code, r.json()['message'])
+                log_msg = api_log.format(env, cluster_name, job_name, 'requirements', config['artifact_parts'][0],
+                                         config['artifact_parts'][1], ip, r.status_code, r.json()['message'])
                 log_assertion(r.status_code == 200, log_msg)
 
         cli_cmd = emr_add_step_template.render(config)
