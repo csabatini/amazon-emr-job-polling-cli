@@ -10,7 +10,8 @@ from datetime import datetime, timedelta
 from jinja2 import Template
 from templates import spark_template
 
-emr_add_step_template = Template('aws emr --profile {{ env }} add-steps --cluster-id {{ cluster_id }} '
+emr_add_step_template = Template('aws emr add-steps{% if not airflow %} --profile {{ profile }}{% endif %} '
+                                 '--cluster-id {{ cluster_id }} '
                                  '--steps Type=Spark,Name={{ job_name }},ActionOnFailure=CONTINUE,Args={{ step_args }}')
 
 
@@ -42,7 +43,7 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_args, job_timeout, c
         .format(env, cluster_name, job_name, len(cluster_info), json.dumps(cluster_info))
     log_assertion(len(cluster_info) == 1, log_msg)
 
-    # add cluster id to the config and log cluster details
+    # add cluster id to the config
     config['cluster_id'] = cluster_info[0]['id']
 
     if artifact_path:  # submit a new EMR Step to the running cluster
