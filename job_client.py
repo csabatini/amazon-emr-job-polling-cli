@@ -5,10 +5,10 @@ import json
 import time
 import pytz
 import requests
-from utils import *
 from datetime import datetime, timedelta
 from jinja2 import Template
 from templates import spark_template
+from utils import *
 
 emr_add_step_template = Template('aws emr add-steps{% if not airflow %} --profile {{ profile }}{% endif %} '
                                  '--cluster-id {{ cluster_id }} '
@@ -34,6 +34,7 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_args, job_timeout, c
                        main_class, artifact_path, h2o_backend, poll_cluster, auto_terminate, airflow):
     config = ctx.params
     config['profile'] = profiles[env]
+    config['artifact_parts'] = get_artifact_parts(artifact_path)
     # initialize the aws clients
     s3_client, emr_client = get_clients(None if airflow else profiles[env])
 
@@ -53,8 +54,8 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_args, job_timeout, c
             ClusterId=config['cluster_id']
         )
         private_ips = [i['PrivateIpAddress'] for i in ec2_instances['Instances']]
-        artifact_parts = artifact_path.replace('s3://', '').split('/', 1)
-        artifact_payload = {'runtime': job_runtime, 'bucket': artifact_parts[0], 'key': artifact_parts[1]}
+        artifact_payload = \
+            {'runtime': job_runtime, 'bucket': config['artifact_parts'][0], 'key': config['artifact_parts'][1]}
 
         api_log = "environment={}, cluster={}, job={}, action={}, bucket={}, key={}, ip={}, status_code={}, message={}"
         for ip in private_ips:
