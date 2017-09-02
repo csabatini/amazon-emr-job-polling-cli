@@ -61,9 +61,7 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_timeout, cluster_nam
     if artifact_path:  # submit a new EMR Step to the running cluster
         config['step_args'] = tokenize_emr_step_args(spark_template.render(config))
 
-        ec2_instances = emr_client.list_instances(
-            ClusterId=config['cluster_id']
-        )
+        ec2_instances = aws_api.list_cluster_instances(config['cluster_id'])
         private_ips = [i['PrivateIpAddress'] for i in ec2_instances['Instances']]
         artifact_payload = \
             {'runtime': job_runtime, 'bucket': config['artifact_parts'][0], 'key': config['artifact_parts'][1]}
@@ -90,9 +88,7 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_timeout, cluster_nam
     if poll_cluster:  # monitor state of the EMR Steps (Spark Jobs)
         minutes_elapsed = 0
         while minutes_elapsed <= job_timeout:
-            response = emr_client.list_steps(
-                ClusterId=config['cluster_id']
-            )
+            response = aws_api.list_cluster_steps(config['cluster_id'])
             jobs = [s for s in response['Steps'] if s['Name'] == job_name]
             if minutes_elapsed == 0:
                 log_msg = "environment={}, cluster={}, job={}, action=list-cluster-steps, clusterId={}, numSteps={}" \

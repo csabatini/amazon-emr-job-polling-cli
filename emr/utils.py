@@ -30,6 +30,12 @@ class AWSApi(object):
              if c['Name'] == cluster_name]
         return same_name_clusters
 
+    def list_cluster_instances(self, cluster_id):
+        return self.emr.list_clusters(ClusterId=cluster_id)
+
+    def list_cluster_steps(self, cluster_id):
+        return self.emr.list_steps(ClusterId=cluster_id)
+
     def terminate_clusters(self, cluster_name, config):
         clusters = self.get_emr_cluster_with_name(cluster_name)
         terminate_template = Template('aws emr{% if not airflow %} --profile {{ profile }}{% endif %} '
