@@ -134,4 +134,4 @@ def cluster_step_metrics(step_info):
 if __name__ == '__main__':
     logging.basicConfig(stream=sys.stdout, level=logging.INFO, format="%(message)s")
     logging.getLogger("botocore").setLevel(logging.WARNING)
-    handle_job_request()
+    parse_arguments()
