@@ -8,7 +8,7 @@ import time
 from datetime import datetime
 from jinja2 import Template
 
-from emr.templates import spark_template
+from templates import spark_template
 from utils import *
 
 emr_add_step_template = Template('aws emr add-steps{% if not airflow %} --profile {{ profile }}{% endif %} '
@@ -67,23 +67,24 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_timeout, cluster_nam
             {'runtime': job_runtime, 'bucket': config['artifact_parts'][0], 'key': config['artifact_parts'][1]}
 
         api_log = "environment={}, cluster={}, job={}, action={}, bucket={}, key={}, ip={}, status_code={}, message={}"
+        status_code_assertion = 'Excepted 200 but found {} HTTP status code'
         for ip in private_ips:
             r = requests.post('http://{}:8080/download'.format(ip), json=artifact_payload)
             log_msg = api_log.format(env, cluster_name, job_name, 'download', config['artifact_parts'][0],
                                      config['artifact_parts'][1], ip, r.status_code, r.json()['message'])
-            log_assertion(r.status_code == 200, log_msg)
+            log_assertion(r.status_code == 200, log_msg, status_code_assertion.format(r.status_code))
             if job_runtime.lower() == 'python':
                 r = requests.get('http://{}:8080/requirements'.format(ip))
                 log_msg = api_log.format(env, cluster_name, job_name, 'requirements', config['artifact_parts'][0],
                                          config['artifact_parts'][1], ip, r.status_code, r.json()['message'])
-                log_assertion(r.status_code == 200, log_msg)
+                log_assertion(r.status_code == 200, log_msg, status_code_assertion.format(r.status_code))
 
         cli_cmd = emr_add_step_template.render(config)
         print '\n\n{}'.format(cli_cmd)
         output = run_cli_cmd(cli_cmd)
         print output
         log_msg = "environment={}, cluster={}, job={}, action=add-job-step".format(env, cluster_name, job_name)
-        log_assertion('StepIds' in json.loads(output).keys(), log_msg)
+        log_assertion('StepIds' in json.loads(output).keys(), log_msg, 'Key \'StepIds\' not found in shell output')
 
     if poll_cluster:  # monitor state of the EMR Steps (Spark Jobs)
         minutes_elapsed = 0
@@ -93,7 +94,8 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_timeout, cluster_nam
             if minutes_elapsed == 0:
                 log_msg = "environment={}, cluster={}, job={}, action=list-cluster-steps, clusterId={}, numSteps={}" \
                     .format(env, cluster_name, job_name, config['cluster_id'], len(jobs))
-                log_assertion(len(jobs) == 1, log_msg)
+                log_assertion(len(jobs) == 1, log_msg,
+                              'Expected 1 but found {} jobs for name {}'.format(len(jobs), job_name))
 
             job_metrics = cluster_step_metrics(jobs[0])
             logging.info("environment={}, cluster={}, job={}, action=poll-cluster, stepId={}, state={}, "
@@ -109,12 +111,13 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_timeout, cluster_nam
                 log_msg = "environment={}, cluster={}, job={}, action=exit-failed-state, stepId={}, state={}".format(
                     env, cluster_name, job_name, job_metrics['id'], job_metrics['state']
                 )
-                log_assertion(job_metrics['state'] != 'FAILED', log_msg)
+                log_assertion(job_metrics['state'] != 'FAILED', log_msg,
+                              'Job in unexpected state {}'.format(job_metrics['state']))
             minutes_elapsed = job_metrics['minutesElapsed']
             time.sleep(60)
         log_msg = "environment={}, cluster={}, job={}, action=exceeded-timeout, minutes={}" \
             .format(env, cluster_name, job_name, job_timeout)
-        log_assertion(minutes_elapsed < job_timeout, log_msg)
+        log_assertion(minutes_elapsed < job_timeout, log_msg, 'Job exceeded timeout {}'.format(job_timeout))
 
 
 def cluster_step_metrics(step_info):
