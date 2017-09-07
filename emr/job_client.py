@@ -67,7 +67,7 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_timeout, cluster_nam
         ec2_instances = aws_api.list_cluster_instances(config['cluster_id'])
         private_ips = [i['PrivateIpAddress'] for i in ec2_instances['Instances']]
         log_msg = "environment={}, cluster={}, job={}, action=list-cluster-instances, count={}, ips={}" \
-            .format(env, cluster_name, job_name, len(private_ips), private_ips)
+            .format(env, cluster_name, job_name, len(private_ips), json.dumps(private_ips))
         log_assertion(len(private_ips) > 0, log_msg,
                       'Expected 1+ but found 0 instances for cluster with name {}'.format(cluster_name))
         artifact_payload = \
