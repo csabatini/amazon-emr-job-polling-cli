@@ -10,6 +10,7 @@ profiles = {
     'pre-prod': 'saml4',
     'prod': 'saml5'
 }
+valid_runtimes = ['scala', 'python']
 
 
 class AWSApi(object):
