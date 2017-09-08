@@ -86,6 +86,11 @@ def log_assertion(condition, log_msg, description):
         logging.exception("exception={}, {}".format(type(e).__name__, log_msg))
         raise e
 
+def try_response_json_lookup(response, key):
+    try:
+        return response.json()[key]
+    except ValueError, e:
+        return 'none'
 
 def tokenize_emr_step_args(arguments):
     return '[{}]'.format(','.join(arguments.split()))
