@@ -64,7 +64,7 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_timeout, cluster_nam
         config['artifact_parts'] = get_artifact_parts(artifact_path)
         config['step_args'] = tokenize_emr_step_args(spark_template.render(config))
 
-        ec2_instances = aws_api.list_cluster_instances(config['cluster_id'])
+        ec2_instances = aws_api.list_running_cluster_instances(config['cluster_id'])
         private_ips = [i['PrivateIpAddress'] for i in ec2_instances['Instances']]
         log_msg = "environment={}, cluster={}, job={}, action=list-cluster-instances, count={}, ips={}" \
             .format(env, cluster_name, job_name, len(private_ips), json.dumps(private_ips))

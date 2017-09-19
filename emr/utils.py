@@ -27,8 +27,8 @@ class AWSApi(object):
              if c['Name'] == cluster_name]
         return same_name_clusters
 
-    def list_cluster_instances(self, cluster_id):
-        return self.emr.list_instances(ClusterId=cluster_id)
+    def list_running_cluster_instances(self, cluster_id):
+        return self.emr.list_instances(ClusterId=cluster_id, InstanceStates=['RUNNING'])
 
     def list_cluster_steps(self, cluster_id):
         return self.emr.list_steps(ClusterId=cluster_id)
