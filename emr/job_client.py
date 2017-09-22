@@ -109,10 +109,11 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_timeout, cluster_nam
             if minutes_elapsed == 0:
                 log_msg = "environment={}, cluster={}, job={}, action=list-cluster-steps, clusterId={}, numSteps={}" \
                     .format(env, cluster_name, job_name, config['cluster_id'], len(jobs))
-                log_assertion(len(jobs) == 1, log_msg,
-                              'Expected 1 but found {} jobs for name {}'.format(len(jobs), job_name))
-
-            job_metrics = cluster_step_metrics(jobs[0])
+                log_assertion(len(jobs) > 0, log_msg,
+                              'Expected 1+ but found {} jobs for name {}'.format(len(jobs), job_name))
+            current_job = reduce((lambda j1, j2: j1 if j1['Status']['Timeline']['CreationDateTime'] >
+                                                    j2['Status']['Timeline']['CreationDateTime'] else j2), jobs)
+            job_metrics = cluster_step_metrics(current_job)
             logging.info("environment={}, cluster={}, job={}, action=poll-cluster, stepId={}, state={}, "
                          "createdTime={}, minutesElapsed={}".format(env, cluster_name, job_name, job_metrics['id'],
                                                                     job_metrics['state'],
@@ -147,7 +148,7 @@ def validate_responses(responses, api_log, config, action):
 def cluster_step_metrics(step_info):
     created_dt = step_info['Status']['Timeline']['CreationDateTime']
     str_created_dt = created_dt.strftime("%Y-%m-%dT%H-%M-%S")
-    seconds_elapsed = (datetime.now(pytz.utc) - created_dt).seconds
+    seconds_elapsed = (datetime.now(pytz.utc) - created_dt).total_seconds()
     minutes_elapsed = divmod(seconds_elapsed, 60)[0]
     return {
         'id': step_info['Id'],
