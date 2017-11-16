@@ -4,8 +4,6 @@ from jinja2 import Template
 spark_template = Template('''--deploy-mode cluster --master yarn 
 {% if job_configs %}{{ job_configs }} {% endif %}
 --conf 'spark.app.name={{ job_name }}'  
---conf 'spark.shuffle.service.enabled={% if job_configs %}false{% else %}true{% endif %}' 
---conf 'spark.dynamicAllocation.enabled={% if job_configs %}false{% else %}true{% endif %}'
 --conf 'spark.yarn.max.executor.failures={{ num_executors * 8 }}'
 {% if job_runtime.lower() == "python" %}--conf 'spark.yarn.appMasterEnv.ENVIRONMENT={{ env }}' --py-files {{ artifact_path }}application.zip {{ artifact_path }}main.py 
 {% else %} 
