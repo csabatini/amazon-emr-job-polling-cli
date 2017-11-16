@@ -8,14 +8,9 @@ import grequests
 import copy
 import collections
 from datetime import datetime
-from jinja2 import Template
 
-from templates import spark_template
+from templates import spark_template, add_spark_step_template
 from utils import *
-
-emr_add_step_template = Template('aws emr add-steps{% if not airflow %} --profile {{ profile }}{% endif %} '
-                                 '--cluster-id {{ cluster_id }} '
-                                 '--steps Type=Spark,Name={{ job_name }},ActionOnFailure=CONTINUE,Args={{ step_args }}')
 
 
 @click.command()
@@ -59,6 +54,7 @@ def handle_job_request(params, api=None):
 
     # determine aws profile to use for AWSApi
     config['profile'] = get_aws_profile(env, airflow, cicd)
+    checkpoint_bucket = checkpoint_bucket if checkpoint_bucket else '{}-checkpoints'.format(env)
     aws_api = api if api is not None else AWSApi(config['profile'])
 
     # get existing cluster info
@@ -72,10 +68,17 @@ def handle_job_request(params, api=None):
     config['cluster_id'] = cluster_info[0]['id']
 
     cli_cmd = ''
+    cluster_job_ids = [job_name]
 
     if shutdown:
+        # put marker file in s3 to initiate streaming job shutdown
         shutdown_streaming_job(aws_api, config, job_name, checkpoint_bucket)
         poll_cluster = True
+
+        # once the spark streaming job shutdown is complete, this job will copy the checkpoints (state) to s3
+        copy_job_id = 'S3DistCp'
+        add_checkpoint_copy_job(config, copy_job_id)
+        cluster_job_ids.append(copy_job_id)
 
     if artifact_path:  # submit a new EMR Step to the running cluster
         config['artifact_parts'] = get_artifact_parts(artifact_path)
@@ -111,48 +114,49 @@ def handle_job_request(params, api=None):
         install_responses = zip(private_ips, grequests.map(install_requests, size=7))
         validate_responses(install_responses, api_log, config, 'install')
 
-        cli_cmd = emr_add_step_template.render(config)
-        print '\n\n{}'.format(cli_cmd)
+        cli_cmd = add_spark_step_template.render(config)
+        logging.info('\n\n{}'.format(cli_cmd))
         if not dryrun:
             output = run_cli_cmd(cli_cmd)
-            print output
+            logging.info(output)
             log_msg = "environment={}, cluster={}, job={}, action=add-job-step".format(env, cluster_name, job_name)
             log_assertion('StepIds' in json.loads(output).keys(), log_msg, 'Key \'StepIds\' not found in shell output')
 
-    if poll_cluster:  # monitor state of the EMR Steps (Spark Jobs)
-        minutes_elapsed = 0
-        while minutes_elapsed <= job_timeout:
-            jobs = aws_api.list_cluster_steps(config['cluster_id'], job_name, active_only=False)
-            if minutes_elapsed == 0:
-                log_msg = "environment={}, cluster={}, job={}, action=list-cluster-steps, clusterId={}, numSteps={}" \
-                    .format(env, cluster_name, job_name, config['cluster_id'], len(jobs))
-                log_assertion(len(jobs) > 0, log_msg,
-                              'Expected 1+ but found {} jobs for name {}'.format(len(jobs), job_name))
-            current_job = reduce((lambda j1, j2: j1 if j1['Status']['Timeline']['CreationDateTime'] >
-                                                       j2['Status']['Timeline']['CreationDateTime'] else j2), jobs)
-            job_metrics = cluster_step_metrics(current_job)
-            logging.info("environment={}, cluster={}, job={}, action=poll-cluster, stepId={}, state={}, "
-                         "createdTime={}, minutesElapsed={}".format(env, cluster_name, job_name, job_metrics['id'],
-                                                                    job_metrics['state'],
-                                                                    job_metrics['createdTime'],
-                                                                    job_metrics['minutesElapsed']))
-            if job_metrics['state'] == 'COMPLETED':
-                if shutdown:
-                    aws_api.delete_job_kill_marker(checkpoint_bucket, job_name)
-                if auto_terminate:
-                    aws_api.terminate_clusters(cluster_name, config)
-                sys.exit(0)  # job successful
-            elif job_metrics['state'] == 'FAILED':
-                log_msg = "environment={}, cluster={}, job={}, action=exit-failed-state, stepId={}, state={}".format(
-                    env, cluster_name, job_name, job_metrics['id'], job_metrics['state']
-                )
-                log_assertion(job_metrics['state'] != 'FAILED', log_msg,
-                              'Job in unexpected state {}'.format(job_metrics['state']))
-            minutes_elapsed = job_metrics['minutesElapsed']
-            time.sleep(60)
-        log_msg = "environment={}, cluster={}, job={}, action=exceeded-timeout, minutes={}" \
-            .format(env, cluster_name, job_name, job_timeout)
-        log_assertion(minutes_elapsed < job_timeout, log_msg, 'Job exceeded timeout {}'.format(job_timeout))
+    if poll_cluster:  # monitor state of the EMR Steps (Spark Jobs). Supports multiple jobs in sequence
+        for job_id in cluster_job_ids:
+            minutes_elapsed = 0
+            while minutes_elapsed <= job_timeout:
+                jobs = aws_api.list_cluster_steps(config['cluster_id'], job_id, active_only=False)
+                if minutes_elapsed == 0:
+                    log_msg = "environment={}, cluster={}, job={}, action=list-cluster-steps, clusterId={}, numSteps={}" \
+                        .format(env, cluster_name, job_id, config['cluster_id'], len(jobs))
+                    log_assertion(len(jobs) > 0, log_msg,
+                                  'Expected 1+ but found {} jobs for name {}'.format(len(jobs), job_id))
+                current_job = reduce((lambda j1, j2: j1 if j1['Status']['Timeline']['CreationDateTime'] >
+                                                           j2['Status']['Timeline']['CreationDateTime'] else j2), jobs)
+                job_metrics = cluster_step_metrics(current_job)
+                logging.info("environment={}, cluster={}, job={}, action=poll-cluster, stepId={}, state={}, "
+                             "createdTime={}, minutesElapsed={}".format(env, cluster_name, job_id, job_metrics['id'],
+                                                                        job_metrics['state'],
+                                                                        job_metrics['createdTime'],
+                                                                        job_metrics['minutesElapsed']))
+                if job_metrics['state'] == 'COMPLETED':
+                    if shutdown:
+                        aws_api.delete_job_kill_marker(checkpoint_bucket, job_id)
+                    if auto_terminate:
+                        aws_api.terminate_clusters(cluster_name, config)
+                    sys.exit(0)  # job successful
+                elif job_metrics['state'] == 'FAILED':
+                    log_msg = "environment={}, cluster={}, job={}, action=exit-failed-state, stepId={}, state={}".format(
+                        env, cluster_name, job_id, job_metrics['id'], job_metrics['state']
+                    )
+                    log_assertion(job_metrics['state'] != 'FAILED', log_msg,
+                                  'Job in unexpected state {}'.format(job_metrics['state']))
+                minutes_elapsed = job_metrics['minutesElapsed']
+                time.sleep(60)
+            log_msg = "environment={}, cluster={}, job={}, action=exceeded-timeout, minutes={}" \
+                .format(env, cluster_name, job_id, job_timeout)
+            log_assertion(minutes_elapsed < job_timeout, log_msg, 'Job exceeded timeout {}'.format(job_timeout))
 
     return cli_cmd if cli_cmd else None
 
@@ -188,8 +192,7 @@ def shutdown_streaming_job(api, configs, job_name, checkpoint_s3_bucket):
         .format(configs['env'], configs['cluster_name'], job_name, count)
     log_assertion(count == 1, log_msg, 'Expected 1 but found {} active jobs with name {}'.format(count, job_name))
 
-    checkpoint_bucket = checkpoint_s3_bucket if checkpoint_s3_bucket else '{}-checkpoints'.format(configs['env'])
-    api.put_job_kill_marker(checkpoint_bucket, job_name)
+    api.put_job_kill_marker(checkpoint_s3_bucket, job_name)
 
 
 if __name__ == '__main__':
