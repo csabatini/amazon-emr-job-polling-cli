@@ -127,8 +127,9 @@ def handle_job_request(params, api):
 
     if poll_cluster:  # monitor state of the EMR Steps (Spark Jobs). Supports multiple jobs in sequence
         for job_id in cluster_job_ids:
+            job_state = 'UNKNOWN'
             minutes_elapsed = 0
-            while minutes_elapsed <= job_timeout:
+            while job_state != 'COMPLETED':
                 jobs = aws_api.list_cluster_steps(config['cluster_id'], job_id, active_only=False)
                 if minutes_elapsed == 0:
                     log_msg = "environment={}, cluster={}, job={}, action=list-cluster-steps, clusterId={}, numSteps={}" \
@@ -143,25 +144,25 @@ def handle_job_request(params, api):
                                                                         job_metrics['state'],
                                                                         job_metrics['createdTime'],
                                                                         job_metrics['minutesElapsed']))
-                if job_metrics['state'] == 'COMPLETED':
-                    if shutdown:
-                        aws_api.delete_job_shutdown_marker(checkpoint_bucket, job_id)
-                    if auto_terminate:
-                        aws_api.terminate_clusters(cluster_name, config)
-                    sys.exit(0)  # job successful
-                elif job_metrics['state'] == 'FAILED':
+                job_state = job_metrics['state']
+                minutes_elapsed = job_metrics['minutesElapsed']
+
+                # check for termination events: failure or timeout exceeded
+                if job_metrics['state'] == 'FAILED':
                     log_msg = "environment={}, cluster={}, job={}, action=exit-failed-state, stepId={}, state={}".format(
                         env, cluster_name, job_id, job_metrics['id'], job_metrics['state']
                     )
                     log_assertion(job_metrics['state'] != 'FAILED', log_msg,
                                   'Job in unexpected state {}'.format(job_metrics['state']))
-                minutes_elapsed = job_metrics['minutesElapsed']
+                elif minutes_elapsed > job_timeout:
+                    log_msg = "environment={}, cluster={}, job={}, action=exceeded-timeout, minutes={}" \
+                        .format(env, cluster_name, job_id, job_timeout)
+                    log_assertion(minutes_elapsed < job_timeout, log_msg, 'Job exceeded timeout {}'.format(job_timeout))
                 time.sleep(60)
-
-            log_msg = "environment={}, cluster={}, job={}, action=exceeded-timeout, minutes={}" \
-                .format(env, cluster_name, job_id, job_timeout)
-            log_assertion(minutes_elapsed < job_timeout, log_msg, 'Job exceeded timeout {}'.format(job_timeout))
-
+        if shutdown:
+            aws_api.delete_job_shutdown_marker(checkpoint_bucket, job_name)
+        if auto_terminate:
+            aws_api.terminate_clusters(cluster_name, config)
     return cli_cmd if cli_cmd else None
 
 
