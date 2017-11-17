@@ -11,7 +11,7 @@ emr_create_cluster_template = Template('''aws emr create-cluster{% if not airflo
     \t--bootstrap-actions Path=s3://{{ env }}-sonic-artifacts/scripts/download_service.sh,Name=S3DownloadService,Args=[{% if artifact_path %}{{ job_runtime }},{{ artifact_path }}{% endif %}]
     \t--ec2-attributes InstanceProfile={{ emr_instance_profile }},KeyName={{ emr_ssh_key_name }},SubnetIds=[\'{{ master_private_subnet_app_secondary_id }}\'],ServiceAccessSecurityGroup={{ master_emrservice_security_group_id }},EmrManagedMasterSecurityGroup={{ master_emr_security_group_id }},EmrManagedSlaveSecurityGroup={{ master_emr_security_group_id }} 
     \t--instance-groups InstanceGroupType=MASTER,InstanceCount=1,InstanceType={{ master_type }} InstanceGroupType=CORE,InstanceType={{ core_type }},InstanceCount={{ core_count }} 
-    \t{% if artifact_path %}--steps{% if has_s3_checkpoints %} Type=CUSTOM_JAR,Jar=command-runner.jar,Name=S3DistCp,ActionOnFailure=CONTINUE,Args=[s3-dist-cp,--s3Endpoint=s3.amazonaws.com,--src=s3://{{ checkpoint_bucket }}/{{ job_name }}/,--dest=/checkpoints/,--srcPattern=".*"]{% endif %} Type=Spark,Name={{ job_name }},ActionOnFailure=CONTINUE,Args={{ step_args }}{% endif %}
+    \t{% if artifact_path %}--steps{% if has_s3_checkpoints %} Type=CUSTOM_JAR,Jar=command-runner.jar,Name=S3DistCp,ActionOnFailure=CONTINUE,Args=[s3-dist-cp,--s3Endpoint=s3.amazonaws.com,--src=s3://{{ checkpoint_bucket }}/{{ job_name }}/,--dest=/checkpoints/,--srcPattern=.*]{% endif %} Type=Spark,Name={{ job_name }},ActionOnFailure=CONTINUE,Args={{ step_args }}{% endif %}
 ''')
 
 # for pyspark we run spark spark-submit with basically just --py-files, for JVM we have more configurations
@@ -39,4 +39,4 @@ add_checkpoint_cp_step_template = \
     Template('aws emr add-steps{% if not airflow %} --profile {{ profile }}{% endif %} --cluster-id {{ cluster_id }} '
              '--steps Type=CUSTOM_JAR,Jar=command-runner.jar,Name=S3DistCp,ActionOnFailure=CONTINUE,'
              'Args=[s3-dist-cp,--s3Endpoint=s3.amazonaws.com,--src=/checkpoints/,'
-             '--dest=s3://{{ checkpoint_bucket }}/{{ job_name }}/,--srcPattern=".*"]')
+             '--dest=s3://{{ checkpoint_bucket }}/{{ job_name }}/,--srcPattern=.*]')
