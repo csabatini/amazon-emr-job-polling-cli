@@ -43,6 +43,17 @@ class AWSApi(object):
         )
         return [s for s in active_jobs['Steps'] if s['Name'] == job_name]
 
+    def add_checkpoint_copy_job(self, config, job_name):
+        cli_cmd = add_checkpoint_cp_step_template.render(config)
+        logging.info(cli_cmd)
+        run_cli_cmd(cli_cmd)
+
+        output = run_cli_cmd(cli_cmd)
+        logging.info(output)
+        log_msg = "environment={}, cluster={}, job={}, action=add-job-step" \
+            .format(config['env'], config['cluster_name'], job_name)
+        log_assertion('StepIds' in json.loads(output).keys(), log_msg, 'Key \'StepIds\' not found in shell output')
+
     def put_job_kill_marker(self, bucket, job_name):
         key = '{}.kill.txt'.format(job_name)
         logging.info("awstype=s3, action=put-kill-marker, status=started, bucket={}, key={}".format(bucket, key))
@@ -96,17 +107,6 @@ def get_aws_profile(env, airflow, cicd):
     else:  # use environment
         return env
 
-
-def add_checkpoint_copy_job(config, job_name):
-    cli_cmd = add_checkpoint_cp_step_template.render(config)
-    logging.info(cli_cmd)
-    run_cli_cmd(cli_cmd)
-
-    output = run_cli_cmd(cli_cmd)
-    logging.info(output)
-    log_msg = "environment={}, cluster={}, job={}, action=add-job-step" \
-        .format(config['env'], config['cluster_name'], job_name)
-    log_assertion('StepIds' in json.loads(output).keys(), log_msg, 'Key \'StepIds\' not found in shell output')
 
 def run_cli_cmd(cmd):
     return check_output(cmd.split(), shell=True) if sys.platform.startswith('win') else check_output(cmd.split())
