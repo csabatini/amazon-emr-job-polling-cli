@@ -55,8 +55,7 @@ class AWSApi(object):
 
     def add_checkpoint_copy_job(self, config, job_name):
         cli_cmd = add_checkpoint_cp_step_template.render(config)
-        logging.info(cli_cmd)
-        run_cli_cmd(cli_cmd)
+        logging.info('\n\n{}\n\n'.format(cli_cmd))
 
         output = run_cli_cmd(cli_cmd)
         logging.info(output)
