@@ -27,6 +27,9 @@ class AWSApi(object):
              if c['Name'] == cluster_name]
         return same_name_clusters
 
+    def is_cluster_active(self, cluster_name):
+        return len(self.get_emr_cluster_with_name(cluster_name)) == 1
+
     def list_running_cluster_instances(self, cluster_id):
         return self.emr.list_instances(ClusterId=cluster_id, InstanceStates=['RUNNING'])
 
@@ -54,14 +57,14 @@ class AWSApi(object):
             .format(config['env'], config['cluster_name'], job_name)
         log_assertion('StepIds' in json.loads(output).keys(), log_msg, 'Key \'StepIds\' not found in shell output')
 
-    def put_job_kill_marker(self, bucket, job_name):
-        key = '{}.kill.txt'.format(job_name)
+    def put_job_shutdown_marker(self, bucket, job_name):
+        key = '{}.shutdown.txt'.format(job_name)
         logging.info("awstype=s3, action=put-kill-marker, status=started, bucket={}, key={}".format(bucket, key))
         self.s3.put_object(Bucket=bucket, Body='', Key=key, ServerSideEncryption='AES256')
         logging.info("awstype=s3, action=put-kill-marker, status=ended, bucket={}, key={}".format(bucket, key))
 
-    def delete_job_kill_marker(self, bucket, job_name):
-        key = '{}.kill.txt'.format(job_name)
+    def delete_job_shutdown_marker(self, bucket, job_name):
+        key = '{}.shutdown.txt'.format(job_name)
         response = self.s3.list_objects_v2(
             Bucket=bucket,
             Prefix=key
