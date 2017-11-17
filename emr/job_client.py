@@ -128,12 +128,12 @@ def handle_job_request(params, api):
     if poll_cluster:  # monitor state of the EMR Steps (Spark Jobs). Supports multiple jobs in sequence
         for job_id in cluster_job_ids:
             job_state = 'UNKNOWN'
-            minutes_elapsed = 0
+
             while job_state != 'COMPLETED':
                 jobs = aws_api.list_cluster_steps(config['cluster_id'], job_id, active_only=False)
-                if minutes_elapsed == 0:
-                    log_msg = "environment={}, cluster={}, job={}, action=list-cluster-steps, clusterId={}, numSteps={}" \
-                        .format(env, cluster_name, job_id, config['cluster_id'], len(jobs))
+                if job_state == 'UNKNOWN':
+                    log_msg = "environment={}, cluster={}, job={}, action=list-cluster-steps, clusterId={}, " \
+                              "numSteps={}".format(env, cluster_name, job_id, config['cluster_id'], len(jobs))
                     log_assertion(len(jobs) > 0, log_msg,
                                   'Expected 1+ but found {} jobs for name {}'.format(len(jobs), job_id))
                 current_job = reduce((lambda j1, j2: j1 if j1['Status']['Timeline']['CreationDateTime'] >
@@ -149,9 +149,8 @@ def handle_job_request(params, api):
 
                 # check for termination events: failure or timeout exceeded
                 if job_metrics['state'] == 'FAILED':
-                    log_msg = "environment={}, cluster={}, job={}, action=exit-failed-state, stepId={}, state={}".format(
-                        env, cluster_name, job_id, job_metrics['id'], job_metrics['state']
-                    )
+                    log_msg = "environment={}, cluster={}, job={}, action=exit-failed-state, stepId={}, state={}" \
+                        .format(env, cluster_name, job_id, job_metrics['id'], job_metrics['state'])
                     log_assertion(job_metrics['state'] != 'FAILED', log_msg,
                                   'Job in unexpected state {}'.format(job_metrics['state']))
                 elif minutes_elapsed > job_timeout:
