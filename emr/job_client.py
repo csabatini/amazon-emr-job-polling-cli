@@ -155,7 +155,7 @@ def handle_job_request(params, api):
                         .format(env, cluster_name, job_id, job_metrics['id'], job_metrics['state'])
                     log_assertion(job_metrics['state'] != 'FAILED', log_msg,
                                   'Job in unexpected state {}'.format(job_metrics['state']))
-                elif minutes_elapsed > job_timeout:
+                elif minutes_elapsed > job_timeout and job_timeout is not None:
                     log_msg = "environment={}, cluster={}, job={}, action=exceeded-timeout, minutes={}" \
                         .format(env, cluster_name, job_id, job_timeout)
                     if job_mode == 'batch':
