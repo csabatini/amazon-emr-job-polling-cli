@@ -130,6 +130,7 @@ def handle_job_request(params, api):
             job_state = 'UNKNOWN'
 
             while job_state != 'COMPLETED':
+                time.sleep(60)
                 jobs = aws_api.list_cluster_steps(config['cluster_id'], job_id, active_only=False)
                 if job_state == 'UNKNOWN':
                     log_msg = "environment={}, cluster={}, job={}, action=list-cluster-steps, clusterId={}, " \
@@ -156,8 +157,12 @@ def handle_job_request(params, api):
                 elif minutes_elapsed > job_timeout:
                     log_msg = "environment={}, cluster={}, job={}, action=exceeded-timeout, minutes={}" \
                         .format(env, cluster_name, job_id, job_timeout)
-                    log_assertion(minutes_elapsed < job_timeout, log_msg, 'Job exceeded timeout {}'.format(job_timeout))
-                time.sleep(60)
+                    if job_mode == 'batch':
+                        log_assertion(False, log_msg, 'Job exceeded timeout {}'.format(job_timeout))
+                    else:
+                        logging.info(log_msg)
+                        sys.exit(0)  # stream monitoring period elapsed without failing
+
         if shutdown:
             aws_api.delete_job_shutdown_marker(checkpoint_bucket, job_name)
         if auto_terminate:
