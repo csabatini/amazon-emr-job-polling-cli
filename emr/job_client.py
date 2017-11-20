@@ -25,7 +25,6 @@ from utils import *
 @click.option('--cluster-name', default='DataPipeline', help='Name for the EMR cluster.')
 @click.option('--artifact-path', help='Amazon S3 path to the Spark artifact.')
 @click.option('--poll-cluster', is_flag=True, help='Option to poll the cluster for job state (completed/failed).')
-@click.option('--soft-timeout', is_flag=True, help='Option to exit quietly if the job timeout is exited while polling.')
 @click.option('--auto-terminate', is_flag=True, help='Terminate the cluster after the Spark job finishes.')
 @click.option('--checkpoint-bucket', default='', help='S3 bucket used for persisten Spark streaming checkpoints;')
 @click.option('--shutdown', is_flag=True, help='Indicator to shutdown the Spark streaming job gracefully')
