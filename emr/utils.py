@@ -32,7 +32,7 @@ class AWSApi(object):
             Bucket=checkpoint_bucket,
             Prefix=job_name + '/'
         )
-        return s3_response['KeyCount'] > 0
+        return s3_response['KeyCount'] > 1 # don't count single folder metadata object
 
     def is_cluster_active(self, cluster_name):
         return len(self.get_emr_cluster_with_name(cluster_name)) == 1
