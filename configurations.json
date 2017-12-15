@@ -17,7 +17,9 @@
       "spark.yarn.maxAppAttempts": "4",
       "spark.yarn.am.attemptFailuresValidityInterval": "1h",
       "spark.yarn.executor.failuresValidityInterval": "1h",
-      "spark.task.maxFailures": "8"
+      "spark.task.maxFailures": "8",
+      "spark.network.timeout": "800",
+      "spark.sql.broadcastTimeout": "1200"
     }
   },
   {
