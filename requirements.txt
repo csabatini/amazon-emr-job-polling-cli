@@ -11,3 +11,4 @@ grequests==0.3.0
 pytest==3.3.1
 mock==2.0.0
 coverage==4.4.2
+PyYAML==3.12
