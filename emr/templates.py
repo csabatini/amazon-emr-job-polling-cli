@@ -4,7 +4,7 @@ emr_create_cluster_template = Template('''aws emr create-cluster{% if profile %}
     \t--name {{ cluster_name }}
     \t--release-label {{ emr_version }}
     \t--configurations file://{{ config_file }}
-    \t--{{ term_choice }}
+    \t--{{ terminate }}
     \t--service-role {{ emr_service_role }}
     \t--tags env={{ env }} owner=bigdata project={{ project }} Name={{ cluster_name }}
     \t--applications Name=Hadoop Name=Spark Name=Hue
