@@ -47,11 +47,11 @@ from utils import log_assertion, get_artifact_parts, tokenize_emr_step_args, \
               help='Option to poll for the final job state.')
 @click.option('--auto-terminate',
               'terminate',
-              flag_value='auto-terminate',
+              flag_value=True,
               help='Terminate the cluster after the Spark job finishes.')
 @click.option('--no-auto-terminate',
               'terminate',
-              flag_value='no-auto-terminate',
+              flag_value=False,
               default=True,
               help='Keep the cluster up after the job finishes (default).')
 @click.option('--checkpoint-bucket',
