@@ -28,14 +28,14 @@ from utils import log_assertion, get_artifact_parts, tokenize_emr_step_args, \
               help='Name for the EMR Step & Spark job.',
               required=True)
 @click.option('--job-runtime', default='scala',
-              help='Runtime for Spark, should be either Scala or Python.')
+              help='Runtime for Spark; should be Scala, Java, or Python.')
 @click.option('--job-timeout',
               default=60,
               help='Spark job timeout in minutes.')
-@click.option(
-    '--job-mode', type=click.Choice(['batch', 'streaming']),
-    required=True,
-    help='Run mode of the Spark job, must be either batch or streaming.')
+@click.option('--job-mode',
+              type=click.Choice(['batch', 'streaming']),
+              required=True,
+              help='Run mode of the Spark job, must be batch or streaming.')
 @click.option('--cluster-name',
               default='DataPipeline',
               help='Name for the EMR cluster.',
@@ -101,7 +101,7 @@ def handle_job_request(params, api=None):
     log_msg = 'environment={}, cluster={}, job={}, action=check-runtime, '
     'runtime={}'.format(env, cluster_name, job_name, job_runtime)
     log_assertion(job_runtime.lower() in valid_runtimes, log_msg,
-                  'runtime should be either Scala or Python')
+                  'runtime should be in {}'.format(valid_runtimes))
 
     if not checkpoint_bucket:
         checkpoint_bucket = '{}-checkpoints'.format(env)
@@ -231,11 +231,11 @@ def distribute_dependencies(aws_api, cluster_id, cluster_name, config, env,
 
     ips = [i['PrivateIpAddress'] for i in ec2_instances['Instances']]
     logging.info('environment={}, cluster={}, job={}, action=get-instances'
-                    ', count={}, ips={}'.format(env,
-                                                cluster_name,
-                                                job_name,
-                                                len(ips),
-                                                json.dumps(ips)))
+                 ', count={}, ips={}'.format(env,
+                                             cluster_name,
+                                             job_name,
+                                             len(ips),
+                                             json.dumps(ips)))
     artifact_payload = {
         'runtime': job_runtime,
         'bucket': config['artifact_parts'][0],
