@@ -18,7 +18,6 @@ emr_create_cluster_template = Template('''aws emr create-cluster{% if profile %}
 spark_template = Template('''--deploy-mode cluster --master yarn
 {% if job_configs %}{{ job_configs }} {% endif %}
 --conf 'spark.app.name={{ job_name }}'
---conf 'spark.yarn.max.executor.failures={{ num_executors * 8 }}'
 {% if job_runtime.lower() == "python" %}--conf 'spark.yarn.appMasterEnv.ENVIRONMENT={{ env }}' --py-files {{ artifact_path }}application.zip {{ artifact_path }}main.py
 {% else %}
 --class {{ main_class }}

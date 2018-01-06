@@ -144,53 +144,11 @@ def handle_job_request(params, api=None):
     # submit a new EMR Step to the running cluster
     if artifact_path and not shutdown:
         config['artifact_parts'] = get_artifact_parts(artifact_path)
-        ec2_instances = \
-            aws_api.list_running_cluster_instances(cluster_id)
-
-        # exclude master node and cluster driver node
-        config['num_executors'] = len(ec2_instances['Instances']) - 2
         config['step_args'] = \
             tokenize_emr_step_args(spark_template.render(config))
 
-        ips = [i['PrivateIpAddress']
-               for i in ec2_instances['Instances']]
-        logging.info('environment={}, cluster={}, job={}, action=get-instances'
-                     ', count={}, ips={}'.format(env,
-                                                 cluster_name,
-                                                 job_name,
-                                                 len(ips),
-                                                 json.dumps(ips)))
-        artifact_payload = {
-            'runtime': job_runtime,
-            'bucket': config['artifact_parts'][0],
-            'key': config['artifact_parts'][1]}
-
-        api_log = 'environment={}, cluster={}, job={}, action={}, bucket={}, '
-        'key={}, ip={}, status_code={}, message={}'
-
-        # download artifacts and install dependencies to the EMR nodes by
-        # calling the bootstrapped web service
-        download_requests = []
-        install_requests = []
-        for ip in ips:
-            if dryrun:
-                continue
-            r = grequests.post(
-                'http://{}:8080/download'.format(ip),
-                json=artifact_payload)
-            download_requests.append(r)
-            if job_runtime.lower() == 'python':
-                r = grequests.get('http://{}:8080/requirements'.format(ip))
-                install_requests.append(r)
-
-        download_responses = \
-            zip(ips, grequests.map(download_requests, size=7))
-        validate_responses(download_responses, api_log, config, 'download')
-
-        install_responses = \
-            zip(ips, grequests.map(install_requests, size=7))
-        validate_responses(install_responses, api_log, config, 'install')
-
+        distribute_dependencies(aws_api, cluster_id, cluster_name, config, env,
+                                job_name, job_runtime)
         cli_cmd = add_spark_step_template.render(config)
         logging.info('\n\n{}'.format(cli_cmd))
         if not dryrun:
@@ -264,6 +222,48 @@ def handle_job_request(params, api=None):
         if terminate:
             aws_api.terminate_clusters(cluster_name, config)
     return cli_cmd if cli_cmd else None
+
+
+def distribute_dependencies(aws_api, cluster_id, cluster_name, config, env,
+                            job_name, job_runtime):
+    ec2_instances = \
+        aws_api.list_running_cluster_instances(cluster_id)
+
+    ips = [i['PrivateIpAddress'] for i in ec2_instances['Instances']]
+    logging.info('environment={}, cluster={}, job={}, action=get-instances'
+                    ', count={}, ips={}'.format(env,
+                                                cluster_name,
+                                                job_name,
+                                                len(ips),
+                                                json.dumps(ips)))
+    artifact_payload = {
+        'runtime': job_runtime,
+        'bucket': config['artifact_parts'][0],
+        'key': config['artifact_parts'][1]
+    }
+    api_log = 'environment={}, cluster={}, job={}, action={}, bucket={}, '
+    'key={}, ip={}, status_code={}, message={}'
+
+    # download artifacts and install dependencies to the EMR nodes by
+    # calling the bootstrapped web service
+    download_requests = []
+    install_requests = []
+    for ip in ips:
+        r = grequests.post(
+            'http://{}:8080/download'.format(ip),
+            json=artifact_payload)
+        download_requests.append(r)
+        if job_runtime.lower() == 'python':
+            r = grequests.get('http://{}:8080/requirements'.format(ip))
+            install_requests.append(r)
+
+    download_responses = \
+        zip(ips, grequests.map(download_requests, size=7))
+    validate_responses(download_responses, api_log, config, 'download')
+
+    install_responses = \
+        zip(ips, grequests.map(install_requests, size=7))
+    validate_responses(install_responses, api_log, config, 'install')
 
 
 def validate_responses(responses, api_log, config, action):
