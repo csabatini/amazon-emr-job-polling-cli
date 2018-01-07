@@ -5,8 +5,8 @@ import sys
 from os.path import dirname, join
 from subprocess import check_output
 
+import boto3
 import yaml
-from boto3 import Session
 from jinja2 import Template
 from emr.templates import add_checkpoint_cp_step_template
 
@@ -17,7 +17,7 @@ class AWSApi(object):
     def __init__(self, profile=None):
         self.profile = profile
         self.session = \
-            Session(profile_name=profile) if profile else Session()
+            boto3.Session(profile_name=profile) if profile else boto3.Session()
         self.s3 = self.session.client('s3')
         self.emr = self.session.client('emr')
 
