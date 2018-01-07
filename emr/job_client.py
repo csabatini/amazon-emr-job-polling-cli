@@ -7,12 +7,13 @@ import time
 import grequests
 import collections
 import logging.config
+import six
 from datetime import datetime
-
-from templates import spark_template, add_spark_step_template
 from functools import reduce
-from utils import log_assertion, get_artifact_parts, tokenize_emr_step_args, \
-    valid_runtimes, run_cli_cmd, try_response_json_lookup, load_config, AWSApi
+
+import emr.utils
+from emr.templates import spark_template, add_spark_step_template
+from emr.utils import valid_runtimes, AWSApi
 
 
 @click.command()
@@ -70,10 +71,10 @@ from utils import log_assertion, get_artifact_parts, tokenize_emr_step_args, \
               default='',
               help='Extra configs for the Spark application.')
 @click.option('--main-class', help='Main class of the Spark application.')
-def parse_arguments(context, env, job_name, job_runtime, job_timeout, job_mode,
-                    cluster_name, artifact_path, poll_cluster, terminate,
-                    checkpoint_bucket, shutdown, dryrun, job_args, job_configs,
-                    main_class):
+def parse_arguments(context, env, profile, job_name, job_runtime, job_timeout,
+                    job_mode, cluster_name, artifact_path, poll_cluster,
+                    terminate, checkpoint_bucket, shutdown, dryrun, job_args,
+                    job_configs, main_class):
     handle_job_request(context.params)
 
 
@@ -96,12 +97,13 @@ def handle_job_request(params, api=None):
 
     artifact_path, checkpoint_bucket, cluster_name, dryrun, env, job_mode, \
         job_name, job_runtime, job_timeout, poll_cluster, profile, shutdown, \
-        terminate = [v for k, v in config.iteritems() if k in extract_keys]
+        terminate = [v for k, v in six.iteritems(config) if k in extract_keys]
 
-    log_msg = 'environment={}, cluster={}, job={}, action=check-runtime, '
-    'runtime={}'.format(env, cluster_name, job_name, job_runtime)
-    log_assertion(job_runtime.lower() in valid_runtimes, log_msg,
-                  'runtime should be in {}'.format(valid_runtimes))
+    log_msg = ('environment={}, cluster={}, job={}, action=check-runtime, '
+               'runtime={}'.format(env, cluster_name, job_name, job_runtime))
+    emr.utils.log_assertion(
+        job_runtime.lower() in valid_runtimes, log_msg,
+        '--job-runtime should be in {}'.format(valid_runtimes))
 
     if not checkpoint_bucket:
         checkpoint_bucket = '{}-checkpoints'.format(env)
@@ -110,10 +112,15 @@ def handle_job_request(params, api=None):
 
     # get existing cluster info
     clust_info = aws_api.get_emr_cluster_with_name(cluster_name)
-    log_msg = 'environment={}, cluster={}, job={}, action=get-clusters, '
-    'count={}, clusterList={}'.format(
-        env, cluster_name, job_name, len(clust_info), json.dumps(clust_info))
-    log_assertion(
+    log_msg = (
+        'environment={}, cluster={}, job={}, action=get-clusters, '
+        'count={}, clusterList={}'.format(
+            env,
+            cluster_name,
+            job_name,
+            len(clust_info),
+            json.dumps(clust_info)))
+    emr.utils.log_assertion(
         len(clust_info) == 1,
         log_msg,
         'Expected 1 but found {} running clusters with name {}'.format(
@@ -143,20 +150,21 @@ def handle_job_request(params, api=None):
 
     # submit a new EMR Step to the running cluster
     if artifact_path and not shutdown:
-        config['artifact_parts'] = get_artifact_parts(artifact_path)
+        config['artifact_parts'] = emr.utils.get_artifact_parts(artifact_path)
         config['step_args'] = \
-            tokenize_emr_step_args(spark_template.render(config))
+            emr.utils.tokenize_emr_step_args(spark_template.render(config))
 
         distribute_dependencies(aws_api, cluster_id, cluster_name, config, env,
                                 job_name, job_runtime)
         cli_cmd = add_spark_step_template.render(config)
         logging.info('\n\n{}'.format(cli_cmd))
         if not dryrun:
-            output = run_cli_cmd(cli_cmd)
+            output = emr.utils.run_cli_cmd(cli_cmd)
             logging.info(output)
-            log_msg = 'environment={}, cluster={}, job={}, '
-            'action=add-job-step'.format(env, cluster_name, job_name)
-            log_assertion('StepIds' in output, log_msg, 'StepIds not found')
+            log_msg = ('environment={}, cluster={}, job={}, action='
+                       'add-job-step'.format(env, cluster_name, job_name))
+            emr.utils.log_assertion('StepIds' in output, log_msg,
+                                    'StepIds not found in console output')
 
     # monitor state of the EMR Step (Spark Job)
     if poll_cluster:
@@ -168,10 +176,11 @@ def handle_job_request(params, api=None):
                 jobs = aws_api.list_cluster_steps(
                     cluster_id, job_id, active_only=False)
                 if job_state == 'UNKNOWN':
-                    log_msg = 'environment={}, cluster={}, job={}, '
-                    'action=get-steps, clusterId={}, numSteps={}'.format(
-                            env, cluster_name, job_id, cluster_id, len(jobs))
-                    log_assertion(
+                    log_msg = (
+                        'environment={}, cluster={}, job={}, '
+                        'action=get-steps, clusterId={}, numSteps={}'.format(
+                            env, cluster_name, job_id, cluster_id, len(jobs)))
+                    emr.utils.log_assertion(
                         len(jobs) > 0, log_msg,
                         'Expected 1+ but found {} jobs for name {}'.format(
                             len(jobs),
@@ -195,21 +204,25 @@ def handle_job_request(params, api=None):
 
                 # check for termination events: failure or timeout exceeded
                 if job_metrics['state'] == 'FAILED':
-                    log_msg = 'environment={}, cluster={}, job={}, '
-                    'action=exit-failed-state, stepId={}, state={}'.format(
-                        env, cluster_name, job_id,
-                        job_metrics['id'], job_metrics['state'])
-                    log_assertion(
+                    log_msg = (
+                        'environment={}, cluster={}, job={}, '
+                        'action=exit-failed-state, stepId={}, state={}'.format(
+                            env,
+                            cluster_name,
+                            job_id,
+                            job_metrics['id'],
+                            job_metrics['state']))
+                    emr.utils.log_assertion(
                         job_metrics['state'] != 'FAILED',
                         log_msg,
                         'Job in invalid state {}'.format(job_metrics['state']))
 
                 elif minutes_elapsed > job_timeout and job_timeout is not None:
-                    log_msg = 'environment={}, cluster={}, job={}, '
-                    'action=exceeded-timeout, minutes={}'.format(
-                        env, cluster_name, job_id, job_timeout)
+                    log_msg = ('environment={}, cluster={}, job={}, '
+                               'action=exceeded-timeout, minutes={}'.format(
+                                   env, cluster_name, job_id, job_timeout))
                     if job_mode == 'batch':
-                        log_assertion(
+                        emr.utils.log_assertion(
                             False, log_msg,
                             'Job exceeded timeout {}'.format(job_timeout))
                     else:
@@ -278,8 +291,8 @@ def validate_responses(responses, api_log, config, action):
             config['artifact_parts'][1],
             resp[0],
             resp[1].status_code,
-            try_response_json_lookup(resp[1], 'message'))
-        log_assertion(
+            emr.utils.try_response_json_lookup(resp[1], 'message'))
+        emr.utils.log_assertion(
             resp[1].status_code == 200,
             log_msg,
             status_code_assertion.format(resp[1].status_code))
@@ -305,8 +318,8 @@ def shutdown_streaming_job(api, configs, job_name, checkpoint_s3_bucket):
         job_name, active_only=True)
     count = len(jobs)
 
-    log_msg = 'environment={}, cluster={}, job={}, '
-    'action=shutdown, is_currently_active={}'
+    log_msg = ('environment={}, cluster={}, job={}, '
+               'action=shutdown, is_currently_active={}')
 
     if count == 1:
         api.put_job_shutdown_marker(checkpoint_s3_bucket, job_name)
@@ -328,6 +341,6 @@ def shutdown_streaming_job(api, configs, job_name, checkpoint_s3_bucket):
 
 
 if __name__ == '__main__':
-    log_config = load_config('logging.yml', 'LOG_CFG')
+    log_config = emr.utils.load_config('logging.yml', 'LOG_CFG')
     logging.config.dictConfig(log_config)
     parse_arguments()

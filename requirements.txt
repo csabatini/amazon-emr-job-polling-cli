@@ -3,6 +3,7 @@ boto3>=1.4.7
 botocore>=1.7.40
 Jinja2>=2.8
 click>=6.6
+future==0.16.0
 pytz>=2017.2
 requests==2.18.4
 gevent==1.2.2

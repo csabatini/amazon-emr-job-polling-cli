@@ -8,7 +8,7 @@ from subprocess import check_output
 import yaml
 from boto3 import Session
 from jinja2 import Template
-from templates import add_checkpoint_cp_step_template
+from emr.templates import add_checkpoint_cp_step_template
 
 valid_runtimes = ['scala', 'java', 'python']
 
@@ -146,9 +146,10 @@ def load_config(file_name, env_key):
 
 def log_assertion(condition, log_msg, description):
     try:
-        assert condition, description
+        if not condition:
+            raise ValueError(description)
         logging.info(log_msg)
-    except AssertionError, e:
+    except ValueError as e:
         logging.exception("exception={}, {}".format(type(e).__name__, log_msg))
         raise e
 

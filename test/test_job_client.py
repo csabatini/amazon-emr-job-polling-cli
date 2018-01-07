@@ -3,7 +3,7 @@ import pytest
 from collections import namedtuple
 from mock import Mock, call
 
-import emr.job_client
+from emr.job_client import handle_job_request
 
 
 @pytest.fixture
@@ -69,14 +69,23 @@ def test_adds_expected_python_job(config, aws_api, grequests):
         s3://us-east-1.elasticmapreduce/samples/wordcount/main.py]
         """
 
-    output = emr.job_client.handle_job_request(config, aws_api)
+    output = handle_job_request(config, aws_api)
     assert output
     assert textwrap.dedent(expected_output).replace('\n', '') == output
 
 
+def test_invalid_job_runtime_throws_error(config, aws_api):
+    with pytest.raises(ValueError) as excinfo:
+        config['job_runtime'] = 'javascript'
+        handle_job_request(config, aws_api)
+
+    assert str(excinfo.value) == \
+        "--job-runtime should be in ['scala', 'java', 'python']"
+
+
 def test_shutdown_false_no_shutdown_api_calls(config, aws_api, grequests):
     config['job_runtime'] = 'Scala'
-    emr.job_client.handle_job_request(config, aws_api)
+    handle_job_request(config, aws_api)
 
     # api.put_job_shutdown_marker not called
     assert aws_api.put_job_shutdown_marker.call_count == 0
@@ -89,7 +98,7 @@ def test_shutdown_true_makes_shutdown_api_calls(config, aws_api, grequests):
     config['job_runtime'] = 'Scala'
     config['shutdown'] = True
 
-    emr.job_client.handle_job_request(config, aws_api)
+    handle_job_request(config, aws_api)
 
     # api.put_job_shutdown_marker is called for this job
     calls = [call('qa-checkpoints', 'WordCount')]
@@ -103,13 +112,13 @@ def test_shutdown_true_makes_shutdown_api_calls(config, aws_api, grequests):
 def test_cluster_job_not_added_conditions(config, aws_api, grequests):
     # job should not be added if artifact_path is empty, or shutdown is True
     config['shutdown'] = True
-    emr.job_client.handle_job_request(config, aws_api)
+    handle_job_request(config, aws_api)
     # TODO: assert on mock of run_cli_cmd
     assert aws_api.list_running_cluster_instances.call_count == 0
 
     config['artifact_path'] = ''
     config['shutdown'] = False
-    emr.job_client.handle_job_request(config, aws_api)
+    handle_job_request(config, aws_api)
     # TODO: assert on mock of run_cli_cmd
     assert aws_api.list_running_cluster_instances.call_count == 0
 
@@ -117,6 +126,6 @@ def test_cluster_job_not_added_conditions(config, aws_api, grequests):
     config['artifact_path'] = \
         's3://us-east-1.elasticmapreduce/samples/wordcount/'
     config['shutdown'] = False
-    emr.job_client.handle_job_request(config, aws_api)
+    handle_job_request(config, aws_api)
     # TODO: assert on mock of run_cli_cmd
     assert aws_api.list_running_cluster_instances.call_count == 1
