@@ -1,3 +1,4 @@
+import logging
 import os
 import pytest
 from mock import call, Mock
@@ -16,15 +17,30 @@ EXPECTED_LOG_HANDLERS = {
 
 
 @pytest.fixture
-def session(mocker):
+def list_clusters_response():
+    return {
+            'Clusters': [
+                {'Id': '183', 'Name': 'EMR1', 'Status': {'State': 'RUNNING'}},
+                {'Id': '359', 'Name': 'TEST', 'Status': {'State': 'RUNNING'}},
+                {'Id': '637', 'Name': 'EMR3', 'Status': {'State': 'RUNNING'}}
+            ]
+        }
+
+
+@pytest.fixture
+def session(mocker, list_clusters_response):
     mock_s3 = Mock()
     mock_emr = Mock()
-    mock_s3.service = 's3'
-    mock_emr.service = 'emr'
+    mock_emr.list_clusters.return_value = list_clusters_response
 
     mock_session = mocker.patch('emr.utils.boto3.Session', autospec=True)
     mock_session.return_value.client.side_effect = [mock_s3, mock_emr]
     return mock_session
+
+
+@pytest.fixture
+def shell_exec(mocker):
+    return mocker.patch('emr.utils.run_shell_command', autospec=True)
 
 
 def test_s3_and_emr_clients_initialized(session):
@@ -35,16 +51,11 @@ def test_s3_and_emr_clients_initialized(session):
     session.return_value.client.assert_has_calls(expected_calls)
 
 
-def test_returns_empty_list_when_no_matching_clusters(session):
+def test_returns_empty_list_when_no_matching_clusters(session,
+                                                      list_clusters_response):
     aws_api = AWSApi()
-    aws_api.emr.list_clusters.return_value = \
-        {
-            'Clusters': [
-                {'Id': '183', 'Name': 'EMR1', 'Status': {'State': 'RUNNING'}},
-                {'Id': '359', 'Name': 'EMR2', 'Status': {'State': 'RUNNING'}},
-                {'Id': '637', 'Name': 'EMR3', 'Status': {'State': 'RUNNING'}}
-            ]
-        }
+    list_clusters_response['Clusters'][1]['Name'] = 'EMR2'
+    aws_api.emr.list_clusters.return_value = list_clusters_response
 
     # get clusters named TEST, of which there are none
     clusters = aws_api.get_emr_cluster_with_name('TEST')
@@ -55,20 +66,26 @@ def test_returns_empty_list_when_no_matching_clusters(session):
 
 def test_returns_expected_matching_clusters(session):
     aws_api = AWSApi()
-    aws_api.emr.list_clusters.return_value = \
-        {
-            'Clusters': [
-                {'Id': '183', 'Name': 'EMR1', 'Status': {'State': 'RUNNING'}},
-                {'Id': '359', 'Name': 'TEST', 'Status': {'State': 'RUNNING'}},
-                {'Id': '637', 'Name': 'EMR3', 'Status': {'State': 'RUNNING'}}
-            ]
-        }
 
     # get clusters named TEST, of which there are none
     clusters = aws_api.get_emr_cluster_with_name('TEST')
 
     aws_api.emr.list_clusters.assert_called_once
     assert clusters == [{'id': '359', 'name': 'TEST', 'state': 'RUNNING'}]
+
+
+def test_terminates_existing_matching_clusters(session, shell_exec):
+    aws_api = AWSApi()
+    expected_command = \
+        'aws emr --profile qa terminate-clusters --cluster-id 359'
+
+    aws_api.terminate_clusters('TEST', {'profile': 'qa'})
+
+    # should list emr clusters to get the cluster id
+    aws_api.emr.list_clusters.assert_called_once
+
+    # should terminate cluster(s) with the aws cli
+    shell_exec.assert_called_with(expected_command)
 
 
 def test_loads_config_from_default_path():

@@ -1,3 +1,4 @@
+from __future__ import print_function
 import click
 import json
 import logging
@@ -159,8 +160,8 @@ def handle_job_request(params, api=None):
         cli_cmd = add_spark_step_template.render(config)
         logging.info('\n\n{}'.format(cli_cmd))
         if not dryrun:
-            output = emr.utils.run_cli_cmd(cli_cmd)
-            logging.info(output)
+            output = emr.utils.run_shell_command(cli_cmd)
+            print(output)
             log_msg = ('environment={}, cluster={}, job={}, action='
                        'add-job-step'.format(env, cluster_name, job_name))
             emr.utils.log_assertion('StepIds' in output, log_msg,

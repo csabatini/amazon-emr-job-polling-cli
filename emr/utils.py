@@ -1,3 +1,4 @@
+from __future__ import print_function
 import json
 import logging
 import os
@@ -75,7 +76,7 @@ class AWSApi(object):
         cli_cmd = add_checkpoint_cp_step_template.render(config)
         logging.info('\n\n{}\n\n'.format(cli_cmd))
 
-        output = run_cli_cmd(cli_cmd)
+        output = run_shell_command(cli_cmd)
         logging.info(output)
         log_msg = "environment={}, cluster={}, job={}, action=add-job-step" \
             .format(config['env'], config['cluster_name'], job_name)
@@ -113,18 +114,17 @@ class AWSApi(object):
     def terminate_clusters(self, cluster_name, config):
         clusters = self.get_emr_cluster_with_name(cluster_name)
 
-        terminate_template = Template(
-            'aws emr{% if profile %} --profile {{ profile }}{% endif %} '
-            'terminate-clusters --cluster-id {{ clust_id }}')
+        terminate_template = \
+            Template(('aws emr{% if profile %} --profile {{ profile }}'
+                      '{% endif %} terminate-clusters --cluster-id '
+                      '{{ clust_id }}'))
 
-        for cluster_details in clusters:
-            config['clust_id'] = cluster_details['id']
-            logging.info(
-                '\nTerminating cluster: {}\n'.format(
-                    json.dumps(cluster_details)))
+        for cluster_info in clusters:
+            config['clust_id'] = cluster_info['id']
+            print('Terminating cluster: {}\n'.format(json.dumps(cluster_info)))
             term_command = terminate_template.render(config)
-            logging.info('\n{}\n'.format(term_command))
-            run_cli_cmd(term_command)
+            print('\n{}\n'.format(term_command))
+            run_shell_command(term_command)
 
     def get_remote_state_values(self, env, s3_key, output_keys):
         obj = self.s3.get_object(
@@ -140,7 +140,7 @@ class AWSApi(object):
         return result
 
 
-def run_cli_cmd(cmd):
+def run_shell_command(cmd):
     return check_output(cmd.split()) if not sys.platform.startswith('win') \
         else check_output(cmd.split(), shell=True)
 
