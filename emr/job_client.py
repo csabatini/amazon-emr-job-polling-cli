@@ -14,7 +14,7 @@ from functools import reduce
 
 import emr.utils
 from emr.templates import spark_template, add_spark_step_template
-from emr.utils import valid_runtimes, AWSApi
+from emr.utils import valid_runtimes
 
 
 @click.command()
@@ -79,7 +79,7 @@ def parse_arguments(context, env, profile, job_name, job_runtime, job_timeout,
     handle_job_request(context.params)
 
 
-def handle_job_request(params, api=None):
+def handle_job_request(params):
     config = collections.OrderedDict(sorted(params.items()))
     extract_keys = [
         'env',
@@ -109,7 +109,7 @@ def handle_job_request(params, api=None):
     if not checkpoint_bucket:
         checkpoint_bucket = '{}-checkpoints'.format(env)
     config['checkpoint_bucket'] = checkpoint_bucket
-    aws_api = api if api is not None else AWSApi(profile)
+    aws_api = emr.utils.AWSApi(profile) if profile else emr.utils.AWSApi()
 
     # get existing cluster info
     clust_info = aws_api.get_emr_cluster_with_name(cluster_name)
@@ -140,11 +140,11 @@ def handle_job_request(params, api=None):
         # put marker file in s3 to initiate streaming job shutdown
         shutdown_initiated = shutdown_streaming_job(
             aws_api, config, job_name, checkpoint_bucket)
+        # when job isn't running, remove it from the list of jobs to poll
         if not shutdown_initiated:
             cluster_job_ids = []
 
-        # once the streaming job shutdown finishes, this job will copy the
-        # spark checkpoints to s3
+        # add job to copy the spark checkpoints files to s3
         copy_job_id = 'S3DistCp'
         aws_api.add_checkpoint_copy_job(config, copy_job_id)
         cluster_job_ids.append(copy_job_id)
