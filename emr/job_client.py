@@ -135,7 +135,7 @@ def handle_job_request(params):
     cluster_job_ids = [job_name]
 
     if shutdown:
-        poll_cluster = True if not dryrun else False
+        poll_cluster = True
         job_timeout = None
         # put marker file in s3 to initiate streaming job shutdown
         shutdown_initiated = shutdown_streaming_job(
@@ -165,7 +165,7 @@ def handle_job_request(params):
             log_msg = ('environment={}, cluster={}, job={}, action='
                        'add-job-step'.format(env, cluster_name, job_name))
             emr.utils.log_assertion('StepIds' in output, log_msg,
-                                    'StepIds not found in console output')
+                                    'StepIds not found in terminal output')
 
     # monitor state of the EMR Step (Spark Job)
     if poll_cluster:
@@ -218,7 +218,7 @@ def handle_job_request(params):
                         log_msg,
                         'Job in invalid state {}'.format(job_metrics['state']))
 
-                elif minutes_elapsed > job_timeout and job_timeout is not None:
+                elif job_timeout is not None and minutes_elapsed > job_timeout:
                     log_msg = ('environment={}, cluster={}, job={}, '
                                'action=exceeded-timeout, minutes={}'.format(
                                    env, cluster_name, job_id, job_timeout))
