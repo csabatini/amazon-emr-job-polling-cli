@@ -158,7 +158,7 @@ def handle_job_request(params):
         distribute_dependencies(aws_api, cluster_id, cluster_name, config, env,
                                 job_name, job_runtime)
         cli_cmd = add_spark_step_template.render(config)
-        logging.info('\n\n{}'.format(cli_cmd))
+        logging.info(cli_cmd)
         if not dryrun:
             output = emr.utils.run_shell_command(cli_cmd)
             print(output)
