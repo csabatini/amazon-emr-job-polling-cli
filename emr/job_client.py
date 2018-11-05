@@ -144,11 +144,14 @@ def handle_job_request(params):
                     'Expected 1+ but found {} jobs for name {}'.format(
                         len(jobs),
                         job_name))
-            current_job = reduce(
-                (lambda j1, j2: j1
-                    if j1['Status']['Timeline']['CreationDateTime'] >
-                    j2['Status']['Timeline']['CreationDateTime'] else j2),
-                jobs)
+
+            def compare_times(j1, j2):
+                j1_creation = j1['Status']['Timeline']['CreationDateTime']
+                j2_creation = j2['Status']['Timeline']['CreationDateTime']
+
+                return j1 if j1_creation > j2_creation else j2
+            current_job = reduce(compare_times, jobs)
+
             job_metrics = cluster_step_metrics(current_job)
             logging.info(
                 'environment={}, cluster={}, job={}, action=poll-cluster, '
