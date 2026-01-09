@@ -19,7 +19,8 @@
       "spark.yarn.executor.failuresValidityInterval": "1h",
       "spark.task.maxFailures": "8",
       "spark.network.timeout": "800",
-      "spark.sql.broadcastTimeout": "1200"
+      "spark.sql.broadcastTimeout": "1200",
+      "spark.driver.maxResultSize": "5g"
     }
   },
   {
