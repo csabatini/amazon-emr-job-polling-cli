@@ -29,7 +29,7 @@ class AWSApi(object):
     def list_running_cluster_instances(self, cluster_id):
         return self.emr.list_instances(ClusterId=cluster_id, InstanceStates=['RUNNING'])
 
-    def list_cluster_jobs(self, cluster_id, job_name, active_only=False):
+    def list_cluster_steps(self, cluster_id, job_name, active_only=False):
 
         if active_only:
             states = ['PENDING', 'RUNNING']

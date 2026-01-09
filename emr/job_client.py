@@ -51,7 +51,7 @@ def handle_job_request(params, api=None):
                     'auto_terminate', 'checkpoint_bucket', 'shutdown', 'cicd', 'airflow', 'dryrun']
 
     airflow, artifact_path, auto_terminate, checkpoint_bucket, cicd, cluster_name, dryrun, env, job_name, \
-    job_runtime, job_timeout, shutdown, poll_cluster = [v for k, v in config.iteritems() if k in extract_keys]
+    job_runtime, job_timeout, poll_cluster, shutdown = [v for k, v in config.iteritems() if k in extract_keys]
 
     log_msg = 'environment={}, cluster={}, job={}, action=check-runtime, runtime={}' \
         .format(env, cluster_name, job_name, job_runtime)
@@ -122,7 +122,7 @@ def handle_job_request(params, api=None):
     if poll_cluster:  # monitor state of the EMR Steps (Spark Jobs)
         minutes_elapsed = 0
         while minutes_elapsed <= job_timeout:
-            jobs = aws_api.list_cluster_jobs(config['cluster_id'], job_name, active_only=False)
+            jobs = aws_api.list_cluster_steps(config['cluster_id'], job_name, active_only=False)
             if minutes_elapsed == 0:
                 log_msg = "environment={}, cluster={}, job={}, action=list-cluster-steps, clusterId={}, numSteps={}" \
                     .format(env, cluster_name, job_name, config['cluster_id'], len(jobs))
@@ -181,7 +181,7 @@ def cluster_step_metrics(step_info):
 
 
 def shutdown_streaming_job(api, configs, job_name, checkpoint_s3_bucket):
-    jobs = api.list_cluster_jobs(configs['cluster_id'], job_name, active_only=True)
+    jobs = api.list_cluster_steps(configs['cluster_id'], job_name, active_only=True)
     count = len(jobs)
 
     log_msg = "environment={}, cluster={}, job={}, action=list-cluster-steps, count={}" \
