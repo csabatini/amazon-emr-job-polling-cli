@@ -2,7 +2,7 @@ from jinja2 import Template
 
 # for pyspark we run spark spark-submit with basically just --py-files, for JVM we have more configurations
 spark_template = Template('''--deploy-mode cluster --master yarn 
-{% if job_runtime.lower() == "python" %}--py-files {{ artifact_path }}application.zip {{ artifact_path }}main.py
+{% if job_runtime.lower() == "python" %}--conf 'spark.yarn.appMasterEnv.ENVIRONMENT={{ env }}' --py-files {{ artifact_path }}application.zip {{ artifact_path }}main.py
 {% else %}
 {% if h2o_backend %}--num-executors {{ core_count + 1 }}{% endif %}
 --conf 'spark.shuffle.service.enabled=true' 
