@@ -38,6 +38,7 @@
     "Properties": {
       "yarn.log-aggregation-enable": "true",
       "yarn.log-aggregation.retain-seconds": "432000",
+      "yarn.nodemanager.vmem-check-enabled": "false",
       "yarn.nodemanager.remote-app-log-dir": "/var/log/hadoop-yarn/apps",
       "yarn.nodemanager.log-aggregation.roll-monitoring-interval-seconds": "3600",
       "yarn.resourcemanager.am.max-attempts": "4"
