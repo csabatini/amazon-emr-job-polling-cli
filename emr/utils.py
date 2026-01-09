@@ -15,7 +15,7 @@ profiles = {
 class AWSApi(object):
     def __init__(self, profile=None):
         self.profile = profile
-        self.session =  boto3.Session(profile_name=profile)
+        self.session = boto3.Session(profile_name=profile)
         self.s3 = self.session.client('s3')
         self.emr = self.session.client('emr')
 
@@ -54,6 +54,15 @@ class AWSApi(object):
         return result
 
 
+def get_aws_profile(env, airflow, cicd):
+    if airflow:
+        return None
+    elif cicd:
+        return 'bdp-{}'.format(env.replace('-', ''))
+    else:  # use saml profiles from centrify tool
+        return profiles[env]
+
+
 def run_cli_cmd(cmd):
     return check_output(cmd.split(), shell=True) if sys.platform.startswith('win') else check_output(cmd.split())
 
@@ -62,12 +71,12 @@ def get_artifact_parts(artifact_path):
     return None if not artifact_path else artifact_path.replace('s3://', '').split('/', 1)
 
 
-def log_assertion(condition, message):
+def log_assertion(condition, log_msg, description):
     try:
-        assert condition
-        logging.info(message)
+        assert condition, description
+        logging.info(log_msg)
     except AssertionError, e:
-        logging.exception("exception={}, {}".format(type(e).__name__, message))
+        logging.exception("exception={}, {}".format(type(e).__name__, log_msg))
         raise e
 
 
