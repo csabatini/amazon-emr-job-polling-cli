@@ -2,6 +2,7 @@ import sys
 import json
 import logging
 import boto3
+from templates import add_checkpoint_cp_step_template
 from jinja2 import Template
 from subprocess import check_output
 
@@ -95,6 +96,17 @@ def get_aws_profile(env, airflow, cicd):
     else:  # use environment
         return env
 
+
+def add_checkpoint_copy_job(config, job_name):
+    cli_cmd = add_checkpoint_cp_step_template.render(config)
+    logging.info(cli_cmd)
+    run_cli_cmd(cli_cmd)
+
+    output = run_cli_cmd(cli_cmd)
+    logging.info(output)
+    log_msg = "environment={}, cluster={}, job={}, action=add-job-step" \
+        .format(config['env'], config['cluster_name'], job_name)
+    log_assertion('StepIds' in json.loads(output).keys(), log_msg, 'Key \'StepIds\' not found in shell output')
 
 def run_cli_cmd(cmd):
     return check_output(cmd.split(), shell=True) if sys.platform.startswith('win') else check_output(cmd.split())

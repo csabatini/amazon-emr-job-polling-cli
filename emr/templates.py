@@ -16,3 +16,13 @@ spark_template = Template('''--deploy-mode cluster --master yarn
 {% endif %}
 {{ job_args }}
 ''')
+
+add_spark_step_template = \
+    Template('aws emr add-steps{% if not airflow %} --profile {{ profile }}{% endif %} --cluster-id {{ cluster_id }}'
+             '--steps Type=Spark,Name={{ job_name }},ActionOnFailure=CONTINUE,Args={{ step_args }}')
+
+add_checkpoint_cp_step_template = \
+    Template('aws emr add-steps{% if not airflow %} --profile {{ profile }}{% endif %} --cluster-id {{ cluster_id }}'
+             '--steps Type=CUSTOM_JAR,Jar=command-runner.jar,Name=S3DistCp,ActionOnFailure=CONTINUE,'
+             'Args=[s3-dist-cp,--s3Endpoint=s3.amazonaws.com,--src=/checkpoints/,'
+             '--dest=s3://{{ checkpoint_bucket }}/{{ job_name }}/,--srcPattern=".*"]')
