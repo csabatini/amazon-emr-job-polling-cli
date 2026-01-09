@@ -25,6 +25,7 @@ from utils import *
 @click.option('--cluster-name', default='DataPipeline', help='Name for the EMR cluster.')
 @click.option('--artifact-path', help='Amazon S3 path to the Spark artifact.')
 @click.option('--poll-cluster', is_flag=True, help='Option to poll the cluster for job state (completed/failed).')
+@click.option('--soft-timeout', is_flag=True, help='Option to exit quietly if the job timeout is exited while polling.')
 @click.option('--auto-terminate', is_flag=True, help='Terminate the cluster after the Spark job finishes.')
 @click.option('--checkpoint-bucket', default='', help='S3 bucket used for persisten Spark streaming checkpoints;')
 @click.option('--shutdown', is_flag=True, help='Indicator to shutdown the Spark streaming job gracefully')
@@ -73,6 +74,7 @@ def handle_job_request(params, api):
 
     if shutdown:
         poll_cluster = True if not dryrun else False
+        job_timeout = None
         # put marker file in s3 to initiate streaming job shutdown
         shutdown_initiated = shutdown_streaming_job(aws_api, config, job_name, checkpoint_bucket)
         if not shutdown_initiated:
