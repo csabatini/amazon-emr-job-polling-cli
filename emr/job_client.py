@@ -34,13 +34,13 @@ from utils import *
 @click.option('--job-args', default='', help='Extra arguments for the Spark application.')
 @click.option('--job-configs', default='', help='Extra configs for the Spark application.')
 @click.option('--main-class', help='Main class of the Spark application.')
-def parse_arguments(ctx, env, job_name, job_runtime, job_timeout, job_mode, cluster_name, artifact_path, poll_cluster,
-                    auto_terminate, checkpoint_bucket, shutdown, cicd, airflow, dryrun, job_args, job_configs,
-                    main_class):
-    handle_job_request(ctx.params)
+def parse_arguments(context, env, job_name, job_runtime, job_timeout, job_mode, cluster_name, artifact_path,
+                    poll_cluster, auto_terminate, checkpoint_bucket, shutdown, cicd, airflow, dryrun, job_args,
+                    job_configs, main_class):
+    handle_job_request(context.params, None)
 
 
-def handle_job_request(params, api=None):
+def handle_job_request(params, api):
     config = collections.OrderedDict(sorted(copy.deepcopy(params).items()))
     extract_keys = ['env', 'job_name', 'job_runtime', 'job_timeout', 'cluster_name', 'artifact_path', 'poll_cluster',
                     'auto_terminate', 'checkpoint_bucket', 'shutdown', 'cicd', 'airflow', 'dryrun']
@@ -72,12 +72,12 @@ def handle_job_request(params, api=None):
 
     if shutdown:
         # put marker file in s3 to initiate streaming job shutdown
-        shutdown_streaming_job(aws_api, config, job_name, checkpoint_bucket)
-        poll_cluster = True
+        shutdown_streaming_job(aws_api, config, job_name, checkpoint_bucket) # todo: verify mock_api methods called?
+        poll_cluster = True if not dryrun else False
 
         # once the spark streaming job shutdown is complete, this job will copy the checkpoints (state) to s3
         copy_job_id = 'S3DistCp'
-        add_checkpoint_copy_job(config, copy_job_id)
+        aws_api.add_checkpoint_copy_job(config, copy_job_id)
         cluster_job_ids.append(copy_job_id)
 
     if artifact_path:  # submit a new EMR Step to the running cluster
@@ -192,7 +192,7 @@ def shutdown_streaming_job(api, configs, job_name, checkpoint_s3_bucket):
         .format(configs['env'], configs['cluster_name'], job_name, count)
     log_assertion(count == 1, log_msg, 'Expected 1 but found {} active jobs with name {}'.format(count, job_name))
 
-    api.put_job_kill_marker(checkpoint_s3_bucket, job_name)
+    api.put_job_shutdown_marker(checkpoint_s3_bucket, job_name)
 
 
 if __name__ == '__main__':
