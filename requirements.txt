@@ -1,3 +1,4 @@
 awscli>=1.11.113
 boto3>=1.4.4
 Jinja2>=2.8
+click>=6.6
