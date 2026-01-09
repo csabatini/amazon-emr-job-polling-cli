@@ -23,9 +23,8 @@ emr_add_step_template = Template('aws emr --profile {{ env }} add-steps --cluste
 def handle_job_request(ctx, env, job_name, cluster_name, main_class, artifact_path, h2o_backend):
     config = ctx.params
     if artifact_path:
-        cluster_name = 'CustomerAttrition'
         # initialize the aws clients
-        s3_client, emr_client = get_clients('pre-prod')
+        s3_client, emr_client = get_clients(env)
 
         # get existing cluster info
         cluster_info = get_emr_cluster_with_name(emr_client, cluster_name)
