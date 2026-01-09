@@ -32,6 +32,8 @@ def get_emr_cluster_with_name(emrclient, cluster_name):
          if c['Name'] == cluster_name]
     return same_name_clusters
 
+def get_artifact_parts(artifact_path):
+    return None if not artifact_path else artifact_path.replace('s3://', '').split('/', 1)
 
 def terminate_clusters(emrclient, clustername, config):
     clusters = get_emr_cluster_with_name(emrclient, clustername)
