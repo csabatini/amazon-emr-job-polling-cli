@@ -1,13 +1,14 @@
 import click
-import logging
-import sys
 import json
-import time
+import logging
 import pytz
 import requests
-from datetime import datetime, timedelta
+import sys
+import time
+from datetime import datetime
 from jinja2 import Template
-from templates import spark_template
+
+from emr.templates import spark_template
 from utils import *
 
 emr_add_step_template = Template('aws emr add-steps{% if not airflow %} --profile {{ profile }}{% endif %} '
@@ -30,8 +31,9 @@ emr_add_step_template = Template('aws emr add-steps{% if not airflow %} --profil
 @click.option('--poll-cluster', is_flag=True, help='Option to poll the cluster for job state (completed/failed).')
 @click.option('--auto-terminate', is_flag=True, help='Terminate the cluster after the Spark job finishes.')
 @click.option('--airflow', is_flag=True, help='Indicator for deployment from airflow; uses EC2 instance role auth.')
-def handle_job_request(ctx, env, job_name, job_runtime, job_args, job_timeout, cluster_name,
-                       main_class, artifact_path, h2o_backend, poll_cluster, auto_terminate, airflow):
+@click.option('--dryrun', is_flag=True, help='Print out the EMR command without actually running it.')
+def handle_job_request(ctx, env, job_name, job_runtime, job_args, job_timeout, cluster_name, main_class,
+                       artifact_path, h2o_backend, poll_cluster, auto_terminate, airflow, dryrun):
     config = ctx.params
     config['profile'] = profiles[env]
     config['artifact_parts'] = get_artifact_parts(artifact_path)
