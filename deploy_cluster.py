@@ -1,5 +1,7 @@
+import sys
 import json
 import click
+import logging
 from jinja2 import Template
 from awsutils import profiles, terminate_clusters, get_clients, tokenize_emr_step_args, run_cli_cmd
 from templates import spark_template
@@ -66,9 +68,9 @@ def deploy(ctx, env, emr_version, job_name, job_runtime, cluster_name, project, 
         raw_input()
 
     cli_cmd = emr_create_cli_template.render(config)
-    print '\nRunning script: \n\n{}\n\n'.format(cli_cmd)
+    logging.info('\nRunning script: \n\n{}\n\n'.format(cli_cmd))
     output = run_cli_cmd(cli_cmd)
-    print output
+    logging.info(output)
     assert 'ClusterId' in json.loads(output).keys(), 'Failed to provision cluster'
 
 
@@ -82,4 +84,6 @@ def get_s3_state(s3client, environment, config, s3_key, output_keys):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(stream=sys.stdout, level=logging.INFO, format="%(message)s")
+    logging.getLogger("botocore").setLevel(logging.WARNING)
     deploy()

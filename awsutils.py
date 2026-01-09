@@ -1,5 +1,8 @@
-import boto3
 import sys
+import json
+import logging
+import boto3
+from jinja2 import Template
 from subprocess import check_output
 
 profiles = {
@@ -36,9 +39,9 @@ def terminate_clusters(emrclient, clustername, config):
 
     for cluster_details in clusters:
         config['clust_id'] = cluster_details['id']
-        print '\n\nTerminating cluster: {}'.format(json.dumps(cluster_details))
+        logging.info('\n\nTerminating cluster: {}'.format(json.dumps(cluster_details)))
         term_command = terminate_template.render(config)
-        print term_command
+        logging.info(term_command)
         run_cli_cmd(term_command)
 
 
