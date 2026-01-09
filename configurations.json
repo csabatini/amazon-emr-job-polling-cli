@@ -8,6 +8,7 @@
   {
     "Classification": "spark-defaults",
     "Properties": {
+      "spark.yarn.executor.memoryOverhead": "2816",
       "spark.eventLog.enabled": "true",
       "spark.eventLog.compress": "true",
       "spark.history.fs.cleaner.enabled": "true",
