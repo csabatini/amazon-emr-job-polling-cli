@@ -16,7 +16,6 @@
       "spark.dynamicAllocation.executorIdleTimeout": "900",
       "spark.yarn.maxAppAttempts": "4",
       "spark.yarn.am.attemptFailuresValidityInterval": "1h",
-      "spark.yarn.executor.memoryOverhead": "3024",
       "spark.yarn.executor.failuresValidityInterval": "1h",
       "spark.task.maxFailures": "8"
     }
