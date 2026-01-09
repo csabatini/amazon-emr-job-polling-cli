@@ -3,7 +3,7 @@ from jinja2 import Template
 emr_create_cluster_template = Template('''aws emr create-cluster{% if not airflow %} --profile {{ profile }}{% endif %}
     \t--name {{ cluster_name }}
     \t--release-label {{ emr_version }}
-    \t--configurations file://configurations.json
+    \t--configurations file://{{ config_file }}
     \t--{{ term_choice }}
     \t--service-role {{ emr_service_role }}
     \t--tags env={{ env }} owner=bigdata project={{ project }} Name={{ cluster_name }}
