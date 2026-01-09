@@ -35,6 +35,9 @@ class AWSApi(object):
 
     def terminate_clusters(self, cluster_name, config):
         clusters = self.get_emr_cluster_with_name(cluster_name)
+
+        self.s3
+
         terminate_template = Template('aws emr{% if not airflow %} --profile {{ profile }}{% endif %} '
                                       'terminate-clusters --cluster-id {{ clust_id }}')
 
