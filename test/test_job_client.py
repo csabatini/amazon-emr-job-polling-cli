@@ -11,6 +11,7 @@ params = {
     "job_timeout": 60,
     "job_mode": "batch",
     "poll_cluster": False,
+    "profile": "qa",
     "artifact_path": "s3://qa-sonic-enterprise-data-hub/artifacts/btyd-1.0.0/",
     "checkpoint_bucket": "",
     "shutdown": False,
@@ -20,6 +21,7 @@ params = {
     "h2o_backend": False,
     "job_args": "",
     "main_class": "com.sonicdrivein.datapipeline.Main",
+    "profile": "cicd-qa",
     "project": "know_your_customer",
     "auto_terminate": True
 }
@@ -43,7 +45,7 @@ def test_succeeds_with_default_params():
     mock = get_mock_api()
     output = handle_job_request(params, mock)
     assert len(output) > 0
-    assert output == "aws emr add-steps --profile qa --cluster-id cluster123 --steps Type=Spark,Name=BTYD,ActionOnFailure=CONTINUE,Args=[--deploy-mode,cluster,--master,yarn,--conf,'spark.app.name=BTYD',--conf,'spark.yarn.max.executor.failures=8',--conf,'spark.yarn.appMasterEnv.ENVIRONMENT=qa',--py-files,s3://qa-sonic-enterprise-data-hub/artifacts/btyd-1.0.0/application.zip,s3://qa-sonic-enterprise-data-hub/artifacts/btyd-1.0.0/main.py]"
+    assert output == "aws emr add-steps --profile cicd-qa --cluster-id cluster123 --steps Type=Spark,Name=BTYD,ActionOnFailure=CONTINUE,Args=[--deploy-mode,cluster,--master,yarn,--conf,'spark.app.name=BTYD',--conf,'spark.yarn.max.executor.failures=8',--conf,'spark.yarn.appMasterEnv.ENVIRONMENT=qa',--py-files,s3://qa-sonic-enterprise-data-hub/artifacts/btyd-1.0.0/application.zip,s3://qa-sonic-enterprise-data-hub/artifacts/btyd-1.0.0/main.py]"
 
 
 def test_shutdown_false_no_shutdown_api_calls():

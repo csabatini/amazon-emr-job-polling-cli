@@ -116,16 +116,6 @@ class AWSApi(object):
                 result[k] = outputs[k]['value']
         return result
 
-
-def get_aws_profile(env, airflow, cicd):
-    if airflow:
-        return None
-    elif cicd:
-        return 'bdp-{}'.format(env.replace('-', ''))
-    else:  # use environment
-        return env
-
-
 def run_cli_cmd(cmd):
     return check_output(cmd.split(), shell=True) if sys.platform.startswith('win') else check_output(cmd.split())
 
@@ -149,7 +139,7 @@ def load_config(file_name, env_key):
         with open(file_path, 'r') as f:
             return yaml.safe_load(f.read())
     except (OSError, IOError) as e:
-        logger.exception('Failed to read configuration file, using defaults.', e)
+        logger.exception('Failed to read file: {}'.format(file_path), e)
         return dict()
 
 

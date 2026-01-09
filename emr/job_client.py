@@ -16,48 +16,72 @@ from utils import *
 
 @click.command()
 @click.pass_context
-@click.option('--env', prompt='Enter the environment to deploy to (qa/pre-prod/prod)',
-              help='Environment to deploy to (required).', required=True)
-@click.option('--job-name', help='Name for the EMR Step & Spark job.', required=True)
-@click.option('--job-runtime', default='scala', help='Runtime for Spark, should be either Scala or Python.')
-@click.option('--job-timeout', default=60, help='Spark job timeout in minutes.')
+@click.option('--env',
+              prompt='Enter the environment to deploy to (qa/pre-prod/prod)',
+              help='Environment to deploy to (required).',
+              required=True)
+@click.option('--profile',
+              default='',
+              help='Optional AWS profile credentials to be used.')
+@click.option('--job-name',
+              help='Name for the EMR Step & Spark job.',
+              required=True)
+@click.option('--job-runtime', default='scala',
+              help='Runtime for Spark, should be either Scala or Python.')
+@click.option('--job-timeout',
+              default=60,
+              help='Spark job timeout in minutes.')
 @click.option('--job-mode', type=click.Choice(['batch', 'streaming']), required=True,
               help='Run mode of the Spark job, must be either batch or streaming.')
-@click.option('--cluster-name', default='DataPipeline', help='Name for the EMR cluster.')
-@click.option('--artifact-path', help='Amazon S3 path to the Spark artifact.')
-@click.option('--poll-cluster', is_flag=True, help='Option to poll the cluster for job state (completed/failed).')
-@click.option('--auto-terminate', is_flag=True, help='Terminate the cluster after the Spark job finishes.')
-@click.option('--checkpoint-bucket', default='', help='S3 bucket used for persisten Spark streaming checkpoints;')
-@click.option('--shutdown', is_flag=True, help='Indicator to shutdown the Spark streaming job gracefully')
-@click.option('--cicd', is_flag=True, help='Indicator for deployment from gocd; uses IAM profile auth.')
-@click.option('--airflow', is_flag=True, help='Indicator for deployment from airflow; uses EC2 instance role auth.')
-@click.option('--dryrun', is_flag=True, help='Print out the EMR command without actually running it.')
-@click.option('--job-args', default='', help='Extra arguments for the Spark application.')
-@click.option('--job-configs', default='', help='Extra configs for the Spark application.')
+@click.option('--cluster-name',
+              default='DataPipeline',
+              help='Name for the EMR cluster.',
+              required=True)
+@click.option('--artifact-path',
+              help='Amazon S3 path to the Spark artifact.')
+@click.option('--poll-cluster',
+              is_flag=True,
+              help='Option to poll for the final job state.')
+@click.option('--auto-terminate',
+              is_flag=True,
+              help='Option to terminate the cluster after the job finishes.')
+@click.option('--checkpoint-bucket',
+              default='',
+              help='S3 bucket that persists Spark streaming checkpoints.')
+@click.option('--shutdown',
+              is_flag=True,
+              help='Flag to shutdown the Spark streaming job gracefully')
+@click.option('--dryrun',
+              is_flag=True,
+              help='Output the EMR command without executing it.')
+@click.option('--job-args',
+              default='',
+              help='Extra arguments for the Spark application.')
+@click.option('--job-configs',
+              default='',
+              help='Extra configs for the Spark application.')
 @click.option('--main-class', help='Main class of the Spark application.')
 def parse_arguments(context, env, job_name, job_runtime, job_timeout, job_mode, cluster_name, artifact_path,
-                    poll_cluster, auto_terminate, checkpoint_bucket, shutdown, cicd, airflow, dryrun, job_args,
+                    poll_cluster, auto_terminate, checkpoint_bucket, shutdown, dryrun, job_args,
                     job_configs, main_class):
     handle_job_request(context.params)
 
 
 def handle_job_request(params, api=None):
     config = collections.OrderedDict(sorted(copy.deepcopy(params).items()))
-    extract_keys = ['env', 'job_mode', 'job_name', 'job_runtime', 'job_timeout', 'cluster_name', 'artifact_path',
-                    'poll_cluster', 'auto_terminate', 'checkpoint_bucket', 'shutdown', 'cicd', 'airflow', 'dryrun']
+    extract_keys = ['env', 'profile', 'job_mode', 'job_name', 'job_runtime', 'job_timeout', 'cluster_name', 'artifact_path',
+                    'poll_cluster', 'auto_terminate', 'checkpoint_bucket', 'shutdown', 'dryrun']
 
-    airflow, artifact_path, auto_terminate, checkpoint_bucket, cicd, cluster_name, dryrun, env, job_mode, job_name, \
-    job_runtime, job_timeout, poll_cluster, shutdown = [v for k, v in config.iteritems() if k in extract_keys]
+    artifact_path, auto_terminate, checkpoint_bucket, cluster_name, dryrun, env, job_mode, job_name, \
+    job_runtime, job_timeout, poll_cluster, profile, shutdown = [v for k, v in config.iteritems() if k in extract_keys]
 
     log_msg = 'environment={}, cluster={}, job={}, action=check-runtime, runtime={}' \
         .format(env, cluster_name, job_name, job_runtime)
     log_assertion(job_runtime.lower() in valid_runtimes, log_msg, 'runtime should be either Scala or Python')
 
-    # determine aws profile to use for AWSApi
-    config['profile'] = get_aws_profile(env, airflow, cicd)
     checkpoint_bucket = checkpoint_bucket if checkpoint_bucket else '{}-checkpoints'.format(env)
     config['checkpoint_bucket'] = checkpoint_bucket
-    aws_api = api if api is not None else AWSApi(config['profile'])
+    aws_api = api if api is not None else AWSApi(profile)
 
     # get existing cluster info
     cluster_info = aws_api.get_emr_cluster_with_name(cluster_name)
