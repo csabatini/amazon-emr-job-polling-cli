@@ -10,7 +10,7 @@ spark_template = Template('''--deploy-mode cluster --master yarn
 {% else %} 
 --class {{ main_class }}
 --conf 'spark.driver.extraClassPath=/home/hadoop/{{ artifact_parts[1] }}:/etc/hadoop/conf:/etc/hive/conf:/usr/lib/hadoop-lzo/lib/*:/usr/share/aws/emr/emrfs/conf:/usr/share/aws/emr/emrfs/lib/*:/usr/share/aws/emr/emrfs/auxlib/*' 
---conf 'spark.executor.extraClassPath=/home/hadoop/*:/etc/hadoop/conf:/etc/hive/conf:/usr/lib/hadoop-lzo/lib/*:/usr/share/aws/emr/emrfs/conf:/usr/share/aws/emr/emrfs/lib/*:/usr/share/aws/emr/emrfs/auxlib/*' 
+--conf 'spark.executor.extraClassPath=/home/hadoop/{{ artifact_parts[1] }}:/etc/hadoop/conf:/etc/hive/conf:/usr/lib/hadoop-lzo/lib/*:/usr/share/aws/emr/emrfs/conf:/usr/share/aws/emr/emrfs/lib/*:/usr/share/aws/emr/emrfs/auxlib/*' 
 --conf 'spark.driver.extraJavaOptions=-DenvironmentKey={{ env }}' 
 --conf 'spark.executor.extraJavaOptions=-DenvironmentKey={{ env }}' 
 {{ artifact_path }} 
