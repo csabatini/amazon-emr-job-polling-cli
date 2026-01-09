@@ -10,7 +10,7 @@ import yaml
 from jinja2 import Template
 from templates import add_checkpoint_cp_step_template
 
-valid_runtimes = ['scala', 'python']
+valid_runtimes = ['scala', 'java', 'python']
 
 
 class AWSApi(object):
