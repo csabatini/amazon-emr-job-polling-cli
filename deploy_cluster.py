@@ -1,14 +1,9 @@
 import json
 import click
 from jinja2 import Template
-from awsutils import get_clients, get_emr_cluster_with_name, tokenize_emr_step_args, run_cli_cmd
+from awsutils import profiles, terminate_clusters, get_clients, tokenize_emr_step_args, run_cli_cmd
 from templates import spark_template
 
-profiles = {
-    'qa': 'saml3',
-    'pre-prod': 'saml4',
-    'prod': 'saml5'
-}
 valid_runtimes = ['scala', 'python']
 emr_create_cli_template = Template('''aws emr create-cluster{% if not airflow %} --profile {{ profile }}{% endif %}
     \t--name {{ cluster_name }}
@@ -75,20 +70,6 @@ def deploy(ctx, env, emr_version, job_name, job_runtime, cluster_name, project, 
     output = run_cli_cmd(cli_cmd)
     print output
     assert 'ClusterId' in json.loads(output).keys(), 'Failed to provision cluster'
-
-
-def terminate_clusters(emrclient, clustername, config):
-    clusters = get_emr_cluster_with_name(emrclient, clustername)
-    terminate_template = Template(
-        'aws emr{% if not airflow %} --profile {{ profile }}{% endif %} terminate-clusters --cluster-id {{ clust_id }}'
-    )
-
-    for cluster_details in clusters:
-        config['clust_id'] = cluster_details['id']
-        print '\n\nTerminating existing cluster: {}'.format(json.dumps(cluster_details))
-        term_command = terminate_template.render(config)
-        print term_command
-        run_cli_cmd(term_command)
 
 
 def get_s3_state(s3client, environment, config, s3_key, output_keys):
