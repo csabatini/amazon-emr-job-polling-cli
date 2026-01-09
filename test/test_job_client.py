@@ -1,6 +1,10 @@
+import copy
 import textwrap
 import pytest
+import pytz
 from collections import namedtuple
+from datetime import datetime
+from mock import call
 
 from emr.job_client import handle_job_request
 
@@ -30,10 +34,25 @@ def config():
 
 
 @pytest.fixture
-def aws_api(mocker):
+def step_info():
+    created_time = \
+        datetime(2018, 1, 1, 0, 0, 0, 0).replace(tzinfo=pytz.utc)
+    return [{
+        'Id': 's-648',
+        'Name': 'WordCount',
+        'Status': {
+            'State': 'RUNNING',
+            'Timeline': {
+                'CreationDateTime': created_time
+            }
+        }
+    }]
+
+
+@pytest.fixture
+def aws_api(mocker, step_info):
     mock_api = mocker.patch('emr.utils.AWSApi', autospec=True)
     mock_api.return_value.is_cluster_active.return_value = False
-    mock_api.return_value.list_cluster_steps.return_value = ['step-123']
     mock_api.return_value.list_running_cluster_instances.return_value = {
         'Instances': [
             {'PrivateIpAddress': '192.168.0.1'},
@@ -56,6 +75,19 @@ def grequests(mocker):
     mock_grequests.get.return_value = None
     mock_grequests.map.return_value = responses
     return mock_grequests
+
+
+@pytest.fixture
+def time_sleep(mocker):
+    return mocker.patch('emr.job_client.time.sleep')
+
+
+@pytest.fixture
+def fixed_datetime(mocker):
+    mock_dt = mocker.patch('emr.job_client.datetime.datetime')
+    mock_dt.now.return_value = \
+        datetime(2018, 1, 1, 0, 0, 0, 0).replace(tzinfo=pytz.utc)
+    return mock_dt
 
 
 @pytest.fixture
@@ -94,6 +126,94 @@ def test_invalid_job_runtime_throws_error(config, aws_api, shell_exec):
 
     assert str(excinfo.value) == \
         "--job-runtime should be in ['scala', 'java', 'python']"
+
+
+def test_polls_until_job_state_completed(config,
+                                         step_info,
+                                         aws_api,
+                                         grequests,
+                                         time_sleep,
+                                         fixed_datetime):
+    config['poll_cluster'] = True
+    job_response = copy.deepcopy(step_info[0])
+    job_response['Status']['State'] = 'COMPLETED'
+
+    # return two RUNNING states and then a COMPLETED state when called
+    aws_api.return_value.list_cluster_steps.side_effect = \
+        [step_info, step_info, [job_response]]
+
+    handle_job_request(config)
+
+    # expected time.sleep calls while polling job
+    expected_calls = [call(60) for i in range(0, 3)]
+    assert time_sleep.call_count == 3
+    time_sleep.assert_has_calls(expected_calls)
+
+    # expected interactions to list EMR steps
+    expected_calls = [call('cl-359', 'WordCount', False) for i in range(0, 3)]
+    assert aws_api.return_value.list_cluster_steps.call_count == 3
+    aws_api.return_value.list_cluster_steps.assert_has_calls(expected_calls)
+
+
+def test_polls_until_job_state_failed(config,
+                                      step_info,
+                                      aws_api,
+                                      grequests,
+                                      time_sleep,
+                                      fixed_datetime):
+    config['poll_cluster'] = True
+    job_response = copy.deepcopy(step_info[0])
+    job_response['Status']['State'] = 'FAILED'
+
+    # return two RUNNING states and then a FAILED state when called
+    aws_api.return_value.list_cluster_steps.side_effect = \
+        [step_info, step_info, [job_response]]
+
+    with pytest.raises(ValueError) as excinfo:
+        handle_job_request(config)
+
+    assert str(excinfo.value) == 'Job in invalid state FAILED'
+
+    # expected time.sleep calls while polling job
+    expected_calls = [call(60) for i in range(0, 3)]
+    assert time_sleep.call_count == 3
+    time_sleep.assert_has_calls(expected_calls)
+
+    # expected interactions to list EMR steps
+    expected_calls = [call('cl-359', 'WordCount', False) for i in range(0, 3)]
+    assert aws_api.return_value.list_cluster_steps.call_count == 3
+    aws_api.return_value.list_cluster_steps.assert_has_calls(expected_calls)
+
+
+def test_polls_until_job_state_timeout(config,
+                                       step_info,
+                                       aws_api,
+                                       grequests,
+                                       time_sleep,
+                                       fixed_datetime):
+    config['poll_cluster'] = True
+    job_response = copy.deepcopy(step_info[0])
+    job_response['Status']['Timeline']['CreationDateTime'] = \
+        datetime(2017, 12, 31, 0, 0, 0, 0).replace(tzinfo=pytz.utc)
+
+    # return two RUNNING states and then an exceeded timeout when called
+    aws_api.return_value.list_cluster_steps.side_effect = \
+        [step_info, step_info, [job_response]]
+
+    with pytest.raises(ValueError) as excinfo:
+        handle_job_request(config)
+
+    assert str(excinfo.value) == 'Job exceeded timeout 60'
+
+    # expected time.sleep calls while polling job
+    expected_calls = [call(60) for i in range(0, 3)]
+    assert time_sleep.call_count == 3
+    time_sleep.assert_has_calls(expected_calls)
+
+    # expected interactions to list EMR steps
+    expected_calls = [call('cl-359', 'WordCount', False) for i in range(0, 3)]
+    assert aws_api.return_value.list_cluster_steps.call_count == 3
+    aws_api.return_value.list_cluster_steps.assert_has_calls(expected_calls)
 
 
 def test_shutdown_false_no_shutdown_api_calls(config,

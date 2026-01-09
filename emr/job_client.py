@@ -1,5 +1,6 @@
 from __future__ import print_function
 import click
+import datetime
 import json
 import logging
 import pytz
@@ -9,7 +10,6 @@ import grequests
 import collections
 import logging.config
 import six
-from datetime import datetime
 from functools import reduce
 
 import emr.utils
@@ -235,7 +235,7 @@ def handle_job_request(params):
             aws_api.delete_job_shutdown_marker(checkpoint_bucket, job_name)
         if terminate:
             aws_api.terminate_clusters(cluster_name, config)
-    return cli_cmd if cli_cmd else None
+    return cli_cmd
 
 
 def distribute_dependencies(aws_api, cluster_id, cluster_name, config, env,
@@ -302,7 +302,8 @@ def validate_responses(responses, api_log, config, action):
 def cluster_step_metrics(step_info):
     created_dt = step_info['Status']['Timeline']['CreationDateTime']
     str_created_dt = created_dt.strftime("%Y-%m-%dT%H-%M-%S")
-    seconds_elapsed = (datetime.now(pytz.utc) - created_dt).total_seconds()
+    seconds_elapsed = \
+        (datetime.datetime.now(pytz.utc) - created_dt).total_seconds()
     minutes_elapsed = divmod(seconds_elapsed, 60)[0]
     return {
         'id': step_info['Id'],
