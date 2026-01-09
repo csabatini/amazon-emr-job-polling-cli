@@ -31,18 +31,20 @@ emr_add_step_template = Template('aws emr add-steps{% if not airflow %} --profil
 @click.option('--airflow', is_flag=True, help='Indicator for deployment from airflow; uses EC2 instance role auth.')
 @click.option('--dryrun', is_flag=True, help='Print out the EMR command without actually running it.')
 @click.option('--job-args', default='', help='Extra arguments for the Spark application.')
+@click.option('--job-configs', default='', help='Extra configs for the Spark application.')
 @click.option('--main-class', help='Main class of the Spark application.')
-@click.option('--h2o-backend', is_flag=True, help='Indicates that the Spark job uses the H2O backend.')
 def parse_arguments(ctx, env, job_name, job_runtime, job_timeout, cluster_name, artifact_path, poll_cluster,
-                    auto_terminate, cicd, airflow, dryrun, job_args, main_class, h2o_backend):
+                    auto_terminate, cicd, airflow, dryrun, job_args, job_configs, main_class):
     handle_job_request(ctx, env, job_name, job_runtime, job_timeout, cluster_name, artifact_path, poll_cluster,
-                       auto_terminate, cicd, airflow, dryrun, None, job_args, main_class, h2o_backend)
+                       auto_terminate, cicd, airflow, dryrun, None, job_args, job_configs, main_class)
 
 
 def handle_job_request(ctx, env, job_name, job_runtime, job_timeout, cluster_name, artifact_path, poll_cluster,
-                       auto_terminate, cicd, airflow, dryrun, api, job_args=None, main_class=None, h2o_backend=None):
+                       auto_terminate, cicd, airflow, dryrun, api, job_args=None, job_configs=None, main_class=None):
     config = ctx.params
-    config['artifact_parts'] = get_artifact_parts(artifact_path)
+    log_msg = 'environment={}, cluster={}, job={}, action=check-runtime, runtime={}' \
+        .format(env, cluster_name, job_name, job_runtime)
+    log_assertion(job_runtime.lower() in valid_runtimes, log_msg, 'runtime should be either Scala or Python')
 
     # determine aws profile to use for AWSApi
     config['profile'] = get_aws_profile(env, airflow, cicd)
@@ -59,10 +61,15 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_timeout, cluster_nam
     config['cluster_id'] = cluster_info[0]['id']
 
     if artifact_path:  # submit a new EMR Step to the running cluster
+        config['artifact_parts'] = get_artifact_parts(artifact_path)
         config['step_args'] = tokenize_emr_step_args(spark_template.render(config))
 
         ec2_instances = aws_api.list_cluster_instances(config['cluster_id'])
         private_ips = [i['PrivateIpAddress'] for i in ec2_instances['Instances']]
+        log_msg = "environment={}, cluster={}, job={}, action=list-cluster-instances, count={}, ips={}" \
+            .format(env, cluster_name, job_name, len(private_ips), private_ips)
+        log_assertion(len(private_ips) > 0, log_msg,
+                      'Expected 1+ but found 0 instances for cluster with name {}'.format(cluster_name))
         artifact_payload = \
             {'runtime': job_runtime, 'bucket': config['artifact_parts'][0], 'key': config['artifact_parts'][1]}
 
