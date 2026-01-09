@@ -73,7 +73,7 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_args, job_timeout, c
         output = run_cli_cmd(cli_cmd)
         print output
         log_msg = "environment={}, cluster={}, job={}, action=add-job-step".format(env, cluster_name, job_name)
-        log_assertion('StepId' in json.loads(output).keys(), log_msg)
+        log_assertion('StepIds' in json.loads(output).keys(), log_msg)
 
     if poll_cluster:  # monitor state of the EMR Steps (Spark Jobs)
         minutes_elapsed = 0
