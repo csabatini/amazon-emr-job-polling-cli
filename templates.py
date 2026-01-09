@@ -9,7 +9,7 @@ spark_template = Template('''--deploy-mode cluster --master yarn
 --conf 'spark.dynamicAllocation.enabled={% if h2o_backend %}false{% else %}true{% endif %}' 
 --conf 'spark.app.name={{ job_name }}'  
 --class {{ main_class }}
---conf 'spark.driver.extraClassPath=/home/hadoop/{{ artifact_parts[0] }}:/etc/hadoop/conf:/etc/hive/conf:/usr/lib/hadoop-lzo/lib/*:/usr/share/aws/emr/emrfs/conf:/usr/share/aws/emr/emrfs/lib/*:/usr/share/aws/emr/emrfs/auxlib/*' 
+--conf 'spark.driver.extraClassPath=/home/hadoop/{{ artifact_parts[1] }}:/etc/hadoop/conf:/etc/hive/conf:/usr/lib/hadoop-lzo/lib/*:/usr/share/aws/emr/emrfs/conf:/usr/share/aws/emr/emrfs/lib/*:/usr/share/aws/emr/emrfs/auxlib/*' 
 --conf 'spark.executor.extraClassPath=/home/hadoop/*:/etc/hadoop/conf:/etc/hive/conf:/usr/lib/hadoop-lzo/lib/*:/usr/share/aws/emr/emrfs/conf:/usr/share/aws/emr/emrfs/lib/*:/usr/share/aws/emr/emrfs/auxlib/*' 
 --conf 'spark.driver.extraJavaOptions=-DenvironmentKey={{ env }}' 
 --conf 'spark.executor.extraJavaOptions=-DenvironmentKey={{ env }}' 
