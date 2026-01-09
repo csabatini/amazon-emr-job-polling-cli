@@ -23,7 +23,7 @@ params = {
     "main_class": "com.sonicdrivein.datapipeline.Main",
     "profile": "cicd-qa",
     "project": "know_your_customer",
-    "auto_terminate": True
+    "terminate": True
 }
 
 
