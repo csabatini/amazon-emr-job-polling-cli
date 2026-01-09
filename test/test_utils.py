@@ -1,4 +1,3 @@
-import logging
 import os
 import pytest
 from mock import call, Mock
@@ -19,12 +18,12 @@ EXPECTED_LOG_HANDLERS = {
 @pytest.fixture
 def list_clusters_response():
     return {
-            'Clusters': [
-                {'Id': '183', 'Name': 'EMR1', 'Status': {'State': 'RUNNING'}},
-                {'Id': '359', 'Name': 'TEST', 'Status': {'State': 'RUNNING'}},
-                {'Id': '637', 'Name': 'EMR3', 'Status': {'State': 'RUNNING'}}
-            ]
-        }
+        'Clusters': [
+            {'Id': '183', 'Name': 'EMR1', 'Status': {'State': 'RUNNING'}},
+            {'Id': '359', 'Name': 'TEST', 'Status': {'State': 'RUNNING'}},
+            {'Id': '637', 'Name': 'EMR3', 'Status': {'State': 'RUNNING'}}
+        ]
+    }
 
 
 @pytest.fixture
@@ -60,7 +59,7 @@ def test_returns_empty_list_when_no_matching_clusters(session,
     # get clusters named TEST, of which there are none
     clusters = aws_api.get_emr_cluster_with_name('TEST')
 
-    aws_api.emr.list_clusters.assert_called_once
+    assert aws_api.emr.list_clusters.call_count == 1
     assert len(clusters) == 0
 
 
@@ -70,7 +69,7 @@ def test_returns_expected_matching_clusters(session):
     # get clusters named TEST, of which there are none
     clusters = aws_api.get_emr_cluster_with_name('TEST')
 
-    aws_api.emr.list_clusters.assert_called_once
+    assert aws_api.emr.list_clusters.call_count == 1
     assert clusters == [{'id': '359', 'name': 'TEST', 'state': 'RUNNING'}]
 
 
@@ -82,7 +81,7 @@ def test_terminates_existing_matching_clusters(session, shell_exec):
     aws_api.terminate_clusters('TEST', {'profile': 'qa'})
 
     # should list emr clusters to get the cluster id
-    aws_api.emr.list_clusters.assert_called_once
+    assert aws_api.emr.list_clusters.call_count == 1
 
     # should terminate cluster(s) with the aws cli
     shell_exec.assert_called_with(expected_command)
