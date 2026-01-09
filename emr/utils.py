@@ -5,7 +5,6 @@ import boto3
 from jinja2 import Template
 from subprocess import check_output
 
-
 valid_runtimes = ['scala', 'python']
 
 
@@ -30,13 +29,41 @@ class AWSApi(object):
     def list_running_cluster_instances(self, cluster_id):
         return self.emr.list_instances(ClusterId=cluster_id, InstanceStates=['RUNNING'])
 
-    def list_cluster_steps(self, cluster_id):
-        return self.emr.list_steps(ClusterId=cluster_id)
+    def list_cluster_jobs(self, cluster_id, job_name, active_only=False):
+
+        if active_only:
+            states = ['PENDING', 'RUNNING']
+        else:
+            states = ['PENDING', 'CANCEL_PENDING', 'RUNNING', 'COMPLETED', 'CANCELLED', 'FAILED', 'INTERRUPTED']
+
+        active_jobs = self.emr.list_steps(
+            ClusterId=cluster_id,
+            StepStates=states
+        )
+        return [s for s in active_jobs['Steps'] if s['Name'] == job_name]
+
+    def put_job_kill_marker(self, bucket, job_name):
+        key = '{}.kill.txt'.format(job_name)
+        logging.info("awstype=s3, action=put-kill-marker, status=started, bucket={}, key={}".format(bucket, key))
+        self.s3.put_object(Bucket=bucket, Body='', Key=key, ServerSideEncryption='AES256')
+        logging.info("awstype=s3, action=put-kill-marker, status=ended, bucket={}, key={}".format(bucket, key))
+
+    def delete_job_kill_marker(self, bucket, job_name):
+        key = '{}.kill.txt'.format(job_name)
+        response = self.s3.list_objects_v2(
+            Bucket=bucket,
+            Prefix=key
+        )
+
+        if response['KeyCount'] != 1:  # no kill marker to remove
+            return
+
+        logging.info("awstype=s3, action=delete-kill-marker, status=started, bucket={}, key={}".format(bucket, key))
+        self.s3.delete_object(Bucket=bucket, Key=key)
+        logging.info("awstype=s3, action=delete-kill-marker, status=ended, bucket={}, key={}".format(bucket, key))
 
     def terminate_clusters(self, cluster_name, config):
         clusters = self.get_emr_cluster_with_name(cluster_name)
-
-        self.s3
 
         terminate_template = Template('aws emr{% if not airflow %} --profile {{ profile }}{% endif %} '
                                       'terminate-clusters --cluster-id {{ clust_id }}')
@@ -85,11 +112,13 @@ def log_assertion(condition, log_msg, description):
         logging.exception("exception={}, {}".format(type(e).__name__, log_msg))
         raise e
 
+
 def try_response_json_lookup(response, key):
     try:
         return response.json()[key]
     except ValueError, e:
         return 'none'
+
 
 def tokenize_emr_step_args(arguments):
     return '[{}]'.format(','.join(arguments.split()))
