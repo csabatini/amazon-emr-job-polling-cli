@@ -48,9 +48,9 @@ def deploy(ctx, env, emr_version, job_name, job_runtime, job_args, cluster_name,
            artifact_path, core_count, core_type, master_type, h2o_backend, term_choice, cicd, airflow):
     config = ctx.params
     assert job_runtime.lower() in valid_runtimes, 'job_runtime must be either Scala or Python'
+    config['artifact_parts'] = get_artifact_parts(artifact_path)
     config['step_args'] = None if not artifact_path else tokenize_emr_step_args(spark_template.render(config))
     config['profile'] = 'bdp-{}'.format(env.replace('-', '')) if cicd else profiles[env]  # gocd profiles are bdp-{env}
-    config['artifact_parts'] = get_artifact_parts(artifact_path)
 
     # create the boto clients for this environment
     s3_client, emr_client = get_clients(None if airflow else config['profile'])
