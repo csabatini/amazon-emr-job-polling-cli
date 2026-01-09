@@ -8,7 +8,6 @@
   {
     "Classification": "spark-defaults",
     "Properties": {
-      "spark.yarn.executor.memoryOverhead": "2816",
       "spark.eventLog.enabled": "true",
       "spark.eventLog.compress": "true",
       "spark.history.fs.cleaner.enabled": "true",
@@ -17,6 +16,7 @@
       "spark.dynamicAllocation.executorIdleTimeout": "900",
       "spark.yarn.maxAppAttempts": "4",
       "spark.yarn.am.attemptFailuresValidityInterval": "1h",
+      "spark.yarn.executor.memoryOverhead": "3024",
       "spark.yarn.executor.failuresValidityInterval": "1h",
       "spark.task.maxFailures": "8"
     }
