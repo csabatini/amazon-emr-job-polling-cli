@@ -31,7 +31,7 @@ class AWSApi(object):
         return same_name_clusters
 
     def list_cluster_instances(self, cluster_id):
-        return self.emr.list_clusters(ClusterId=cluster_id)
+        return self.emr.list_instances(ClusterId=cluster_id)
 
     def list_cluster_steps(self, cluster_id):
         return self.emr.list_steps(ClusterId=cluster_id)
