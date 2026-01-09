@@ -5,11 +5,7 @@ import boto3
 from jinja2 import Template
 from subprocess import check_output
 
-profiles = {
-    'qa': 'saml3',
-    'pre-prod': 'saml4',
-    'prod': 'saml5'
-}
+
 valid_runtimes = ['scala', 'python']
 
 
@@ -66,8 +62,8 @@ def get_aws_profile(env, airflow, cicd):
         return None
     elif cicd:
         return 'bdp-{}'.format(env.replace('-', ''))
-    else:  # use saml profiles from centrify tool
-        return profiles[env]
+    else:  # use environment
+        return env
 
 
 def run_cli_cmd(cmd):
