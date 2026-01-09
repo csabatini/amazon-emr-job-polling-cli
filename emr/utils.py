@@ -1,10 +1,14 @@
-import sys
 import json
 import logging
-import boto3
-from templates import add_checkpoint_cp_step_template
-from jinja2 import Template
+import os
+import sys
+from os.path import dirname, join
 from subprocess import check_output
+
+import boto3
+import yaml
+from jinja2 import Template
+from templates import add_checkpoint_cp_step_template
 
 valid_runtimes = ['scala', 'python']
 
@@ -128,6 +132,25 @@ def run_cli_cmd(cmd):
 
 def get_artifact_parts(artifact_path):
     return None if not artifact_path else artifact_path.replace('s3://', '').split('/', 1)
+
+
+def load_config(file_name, env_key):
+    """Utility function to parse a YAML configuration file"""
+    default_log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    logging.basicConfig(level=logging.INFO, format=default_log_fmt)
+    logging.getLogger("botocore").setLevel(logging.WARNING)
+    logger = logging.getLogger(__name__)
+
+    module_dir = dirname(__file__)
+    file_path = os.getenv(env_key, None) or join(module_dir, file_name)
+
+    try:
+        logger.info('Loading configuration from file: {}'.format(file_path))
+        with open(file_path, 'r') as f:
+            return yaml.safe_load(f.read())
+    except (OSError, IOError) as e:
+        logger.exception('Failed to read configuration file, using defaults.', e)
+        return dict()
 
 
 def log_assertion(condition, log_msg, description):

@@ -7,6 +7,7 @@ import time
 import grequests
 import copy
 import collections
+import logging.config
 from datetime import datetime
 
 from templates import spark_template, add_spark_step_template
@@ -37,10 +38,10 @@ from utils import *
 def parse_arguments(context, env, job_name, job_runtime, job_timeout, job_mode, cluster_name, artifact_path,
                     poll_cluster, auto_terminate, checkpoint_bucket, shutdown, cicd, airflow, dryrun, job_args,
                     job_configs, main_class):
-    handle_job_request(context.params, None)
+    handle_job_request(context.params)
 
 
-def handle_job_request(params, api):
+def handle_job_request(params, api=None):
     config = collections.OrderedDict(sorted(copy.deepcopy(params).items()))
     extract_keys = ['env', 'job_mode', 'job_name', 'job_runtime', 'job_timeout', 'cluster_name', 'artifact_path',
                     'poll_cluster', 'auto_terminate', 'checkpoint_bucket', 'shutdown', 'cicd', 'airflow', 'dryrun']
@@ -209,6 +210,6 @@ def shutdown_streaming_job(api, configs, job_name, checkpoint_s3_bucket):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(stream=sys.stdout, level=logging.INFO, format="%(message)s")
-    logging.getLogger("botocore").setLevel(logging.WARNING)
+    log_config = load_config('logging.yml', 'LOG_CFG')
+    logging.config.dictConfig(log_config)
     parse_arguments()
