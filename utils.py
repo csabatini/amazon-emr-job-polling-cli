@@ -11,6 +11,7 @@ profiles = {
     'prod': 'saml5'
 }
 
+
 def run_cli_cmd(cmd):
     return check_output(cmd.split(), shell=True) if sys.platform.startswith('win') else check_output(cmd.split())
 
@@ -31,6 +32,7 @@ def get_emr_cluster_with_name(emrclient, cluster_name):
          if c['Name'] == cluster_name]
     return same_name_clusters
 
+
 def terminate_clusters(emrclient, clustername, config):
     clusters = get_emr_cluster_with_name(emrclient, clustername)
     terminate_template = Template(
@@ -43,6 +45,15 @@ def terminate_clusters(emrclient, clustername, config):
         term_command = terminate_template.render(config)
         logging.info(term_command)
         run_cli_cmd(term_command)
+
+
+def log_assertion(condition, message):
+    try:
+        assert condition
+        logging.info(message)
+    except AssertionError, e:
+        logging.error("exception={}, {}".format(type(e).__name__, message))
+        raise e
 
 
 def tokenize_emr_step_args(arguments):

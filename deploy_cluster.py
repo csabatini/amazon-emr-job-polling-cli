@@ -3,7 +3,7 @@ import json
 import click
 import logging
 from jinja2 import Template
-from awsutils import profiles, terminate_clusters, get_clients, tokenize_emr_step_args, run_cli_cmd
+from utils import profiles, terminate_clusters, get_clients, tokenize_emr_step_args, run_cli_cmd, log_assertion
 from templates import spark_template
 
 valid_runtimes = ['scala', 'python']
@@ -72,7 +72,8 @@ def deploy(ctx, env, emr_version, job_name, job_runtime, job_args, cluster_name,
     logging.info('\nRunning script: \n\n{}\n\n'.format(cli_cmd))
     output = run_cli_cmd(cli_cmd)
     logging.info(output)
-    assert 'ClusterId' in json.loads(output).keys(), 'Failed to provision cluster'
+    log_msg = "environment={}, cluster={}, job={}, action=provision-cluster".format(env, cluster_name, job_name)
+    log_assertion('ClusterId' in json.loads(output).keys(), log_msg)
 
 
 def get_s3_state(s3client, environment, config, s3_key, output_keys):

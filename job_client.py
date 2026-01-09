@@ -4,9 +4,10 @@ import sys
 import json
 import time
 import pytz
+import requests
 from datetime import datetime, timedelta
 from jinja2 import Template
-from awsutils import profiles, get_clients, get_emr_cluster_with_name, tokenize_emr_step_args, terminate_clusters
+from utils import profiles, get_clients, get_emr_cluster_with_name, tokenize_emr_step_args, run_cli_cmd, log_assertion
 from templates import spark_template
 
 emr_add_step_template = Template('aws emr --profile {{ env }} add-steps --cluster-id {{ cluster_id }} '
@@ -20,9 +21,9 @@ emr_add_step_template = Template('aws emr --profile {{ env }} add-steps --cluste
 @click.option('--job_name', help='Name for the EMR Step & Spark job.')
 @click.option('--job_runtime', default='scala', help='Runtime for Spark, should be either Scala or Python.')
 @click.option('--job_args', default='', help='Extra arguments for the Spark application.')
-@click.option('--job_timeout', default=120, help='Spark job timeout in minutes.')
+@click.option('--job_timeout', default=60, help='Spark job timeout in minutes.')
 @click.option('--cluster_name', default='DataPipeline', help='Name for the EMR cluster.')
-@click.option('--main_class', default='com.sonicdrivein.datapipeline.Main', help='Main class of the Spark application.')
+@click.option('--main_class', help='Main class of the Spark application.')
 @click.option('--artifact_path', help='Amazon S3 path to the Spark artifact.')
 @click.option('--h2o_backend', is_flag=True, help='Indicates that the Spark job uses the H2O backend.')
 @click.option('--poll-steps', is_flag=True, help='Option to describe the state of the steps on a cluster.')
@@ -36,48 +37,68 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_args, job_timeout, c
 
     # get existing cluster info
     cluster_info = get_emr_cluster_with_name(emr_client, cluster_name)
-    assert len(cluster_info) == 1, \
-        "expected one but found {} cluster(s) with name {}".format(len(cluster_info), cluster_name)
+    log_msg = "environment={}, cluster={}, job={}, action=get-clusters, count={}, clusterList={}" \
+        .format(env, cluster_name, job_name, len(cluster_info), json.dumps(cluster_info))
+    log_assertion(len(cluster_info) == 1, log_msg)
 
     # add cluster id to the config and log cluster details
     config['cluster_id'] = cluster_info[0]['id']
-    cluster_info_json = json.dumps(cluster_info)
-    logging.info("environment={}, action=get-clusters, count={}, clusterList={}".format(env, len(cluster_info),
-                                                                                        cluster_info_json))
+
+    if artifact_path:  # submit a new EMR Step to the running cluster
+        config['step_args'] = tokenize_emr_step_args(spark_template.render(config))
+
+        ec2_instances = emr_client.list_instances(
+            ClusterId=config['cluster_id']
+        )
+        private_ips = [i['PrivateIpAddress'] for i in ec2_instances['Instances']]
+        artifact_parts = artifact_path.replace('s3://', '').split('/', 1)
+        artifact_payload = {'runtime': job_runtime, 'bucket': artifact_parts[0], 'key': artifact_parts[1]}
+
+        for ip in private_ips:
+            r = requests.post('http://{}:80/download'.format(ip), json=artifact_payload)
+            log_msg = "environment={}, cluster={}, job={}, action=download, bucket={}, key={}, ip={}, " \
+                      "status_code={}, message={}".format(env, cluster_name, job_name, artifact_parts[0],
+                                                          artifact_parts[1], ip, r.status_code, r.json['message'])
+            log_assertion(r.status_code == 200, log_msg)
+
+        cli_cmd = emr_add_step_template.render(config)
+        print '\n\n{}'.format(cli_cmd)
+        output = run_cli_cmd(cli_cmd)
+        print output
+        log_msg = "environment={}, cluster={}, job={}, action=add-job-step".format(env, cluster_name, job_name)
+        log_assertion('StepId' in json.loads(output).keys(), log_msg)
+
     if poll_steps:  # monitor state of the EMR Steps (Spark Jobs)
         minutes_elapsed = 0
         while minutes_elapsed <= job_timeout:
             response = emr_client.list_steps(
                 ClusterId=config['cluster_id']
             )
-            if minutes_elapsed == 0:
-                logging.info("environment={}, action=list-cluster-steps, clusterId={}, numSteps={}".format(
-                    env, config['cluster_id'], len(response['Steps']))
-                )
             jobs = [s for s in response['Steps'] if s['Name'] == job_name]
-            assert len(jobs) == 1, \
-                "expected one but found {} job(s) with name {}".format(len(job_steps), job_name)
+            if minutes_elapsed == 0:
+                log_msg = "environment={}, cluster={}, job={}, action=list-cluster-steps, clusterId={}, numSteps={}" \
+                    .format(env, cluster_name, job_name, config['cluster_id'], len(jobs))
+                log_assertion(len(jobs) == 1, log_msg)
+
             job_metrics = cluster_step_metrics(jobs[0])
-            logging.info("environment={}, action=poll-cluster-step, stepId={}, stepName={}, state={}, createdTime={}, "
-                         "minutesElapsed={}".format(env, job_metrics['id'], job_metrics['name'], job_metrics['state'],
-                                                    job_metrics['createdTime'], job_metrics['minutesElapsed']))
+            logging.info("environment={}, cluster={}, job={}, action=poll-cluster-step, stepId={}, state={}, "
+                         "createdTime={}, minutesElapsed={}".format(env, cluster_name, job_name, job_metrics['id'],
+                                                                    job_metrics['state'],
+                                                                    job_metrics['createdTime'],
+                                                                    job_metrics['minutesElapsed']))
             if job_metrics['state'] == 'COMPLETED':
                 # terminate_clusters(emr_client, cluster_name, config)
                 sys.exit(0)  # job successfuly
             elif job_metrics['state'] == 'FAILED':
-                raise ValueError('Job in unexpected state: {}'.format(job_metrics['state']))
+                log_msg = "environment={}, cluster={}, job={}, action=exit-failed-state, stepId={}, state={}".format(
+                    env, cluster_name, job_name, job_metrics['id'], job_metrics['state']
+                )
+                log_assertion(job_metrics['state'] == 'FAILED', log_msg)
             minutes_elapsed = job_metrics['minutesElapsed']
             time.sleep(60)
-        raise ValueError('Job exceeded timeout: {} minutes'.format(job_timeout))
-
-    else:  # TODO add a step to the cluster - this needs to be explored, currently just creating 1 cluster per step
-        config['step_args'] = tokenize_emr_step_args(spark_template.render(config))
-
-        cli_cmd = emr_add_step_template.render(config)
-        print '\n\n{}'.format(cli_cmd)
-        # output = run_cli_cmd(cli_cmd)
-        # print output
-        # assert 'StepId' in json.loads(output).keys(), 'Failed to add step to cluster'
+        log_msg = "environment={}, cluster={}, job={}, action=exceeded-timeout, minutes={}" \
+            .format(env, cluster_name, job_name, job_timeout)
+        log_assertion(minutes_elapsed < job_timeout, log_msg)
 
 
 def cluster_step_metrics(step_info):
