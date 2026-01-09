@@ -16,7 +16,7 @@ def config():
         "artifact_path": "s3://us-east-1.elasticmapreduce/samples/wordcount/",
         "checkpoint_bucket": "",
         "cluster_name": "Sandbox",
-        "dryrun": True,
+        "dryrun": False,
         "emr_version": "emr-5.6.0",
         "env": "qa",
         "job_args": "",
@@ -92,15 +92,19 @@ def fixed_datetime(mocker):
 
 @pytest.fixture
 def shutdown_function(mocker):
-    return mocker.patch('emr.job_client.shutdown_streaming_job')
+    shutdown_fn = mocker.patch('emr.job_client.shutdown_streaming_job')
+    shutdown_fn.return_value = False
+    return shutdown_fn
 
 
 @pytest.fixture
-def shell_exec(mocker):
-    return mocker.patch('emr.utils.run_shell_command', autospec=True)
+def shell_function(mocker):
+    shell_fn = mocker.patch('emr.utils.run_shell_command', autospec=True)
+    shell_fn.return_value = "{\"StepIds\": [\"s-F37BY4CL9\"]}"
+    return shell_fn
 
 
-def test_adds_expected_python_job(config, aws_api, grequests, shell_exec):
+def test_adds_expected_python_job(config, aws_api, grequests, shell_function):
     expected_output = \
         """
         aws emr add-steps --profile qa --cluster-id cl-359
@@ -112,14 +116,13 @@ def test_adds_expected_python_job(config, aws_api, grequests, shell_exec):
         s3://us-east-1.elasticmapreduce/samples/wordcount/main.py]
         """
 
-    output = handle_job_request(config)
+    handle_job_request(config)
 
-    # TODO: aws cli should be invoked to submit the job
-    # assert shell_exec.call_count == 1
-    assert textwrap.dedent(expected_output).replace('\n', '') == output
+    shell_function.assert_called_once_with(
+        textwrap.dedent(expected_output).replace('\n', ''))
 
 
-def test_invalid_job_runtime_throws_error(config, aws_api, shell_exec):
+def test_invalid_job_runtime_throws_error(config, aws_api, shell_function):
     with pytest.raises(ValueError) as excinfo:
         config['job_runtime'] = 'javascript'
         handle_job_request(config)
@@ -128,12 +131,27 @@ def test_invalid_job_runtime_throws_error(config, aws_api, shell_exec):
         "--job-runtime should be in ['scala', 'java', 'python']"
 
 
+def test_missing_output_resource_id_raises_error(config,
+                                                 aws_api,
+                                                 step_info,
+                                                 grequests,
+                                                 time_sleep,
+                                                 fixed_datetime,
+                                                 shell_function):
+    with pytest.raises(ValueError) as excinfo:
+        shell_function.return_value = 'unexpected aws cli output'
+        handle_job_request(config)
+
+    assert str(excinfo.value) == 'StepIds not found in terminal output'
+
+
 def test_polls_until_job_state_completed(config,
                                          step_info,
                                          aws_api,
                                          grequests,
                                          time_sleep,
-                                         fixed_datetime):
+                                         fixed_datetime,
+                                         shell_function):
     config['poll_cluster'] = True
     job_response = copy.deepcopy(step_info[0])
     job_response['Status']['State'] = 'COMPLETED'
@@ -160,7 +178,8 @@ def test_polls_until_job_state_failed(config,
                                       aws_api,
                                       grequests,
                                       time_sleep,
-                                      fixed_datetime):
+                                      fixed_datetime,
+                                      shell_function):
     config['poll_cluster'] = True
     job_response = copy.deepcopy(step_info[0])
     job_response['Status']['State'] = 'FAILED'
@@ -190,7 +209,8 @@ def test_polls_until_job_state_timeout(config,
                                        aws_api,
                                        grequests,
                                        time_sleep,
-                                       fixed_datetime):
+                                       fixed_datetime,
+                                       shell_function):
     config['poll_cluster'] = True
     job_response = copy.deepcopy(step_info[0])
     job_response['Status']['Timeline']['CreationDateTime'] = \
@@ -220,7 +240,7 @@ def test_shutdown_false_no_shutdown_api_calls(config,
                                               aws_api,
                                               grequests,
                                               shutdown_function,
-                                              shell_exec):
+                                              shell_function):
     config['job_runtime'] = 'Scala'
     config['shutdown'] = False
     handle_job_request(config)
@@ -230,12 +250,19 @@ def test_shutdown_false_no_shutdown_api_calls(config,
 
 
 def test_shutdown_true_makes_shutdown_api_calls(config,
+                                                step_info,
                                                 aws_api,
                                                 grequests,
+                                                time_sleep,
                                                 shutdown_function,
-                                                shell_exec):
+                                                shell_function):
     config['job_runtime'] = 'Scala'
     config['shutdown'] = True
+
+    # mock responses for shutdown polling
+    step_info[0]['Name'] = 'S3DistCp'
+    step_info[0]['Status']['State'] = 'COMPLETED'
+    aws_api.return_value.list_cluster_steps.return_value = step_info
 
     handle_job_request(config)
 
@@ -244,25 +271,31 @@ def test_shutdown_true_makes_shutdown_api_calls(config,
 
 
 def test_cluster_job_not_added_conditions(config,
+                                          step_info,
                                           aws_api,
                                           grequests,
-                                          shell_exec):
+                                          time_sleep,
+                                          shutdown_function,
+                                          shell_function):
     # job should not be added if artifact_path is empty, or shutdown is True
     config['shutdown'] = True
+
+    # mock responses for shutdown polling
+    step_info[0]['Name'] = 'S3DistCp'
+    step_info[0]['Status']['State'] = 'COMPLETED'
+    aws_api.return_value.list_cluster_steps.return_value = step_info
+
     handle_job_request(config)
-    # TODO: assert on mock of run_cli_cmd
-    assert not aws_api.return_value.list_running_cluster_instances.called
+    assert not shell_function.called
 
     config['artifact_path'] = ''
     config['shutdown'] = False
     handle_job_request(config)
-    # TODO: assert on mock of run_cli_cmd
-    assert not aws_api.return_value.list_running_cluster_instances.called
+    assert not shell_function.called
 
     # job should be added under these parameters
     config['artifact_path'] = \
         's3://us-east-1.elasticmapreduce/samples/wordcount/'
     config['shutdown'] = False
     handle_job_request(config)
-    # TODO: assert on mock of run_cli_cmd
-    assert aws_api.return_value.list_running_cluster_instances.call_count == 1
+    assert shell_function.call_count == 1
