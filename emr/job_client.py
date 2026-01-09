@@ -42,10 +42,10 @@ emr_add_step_template = Template('aws emr add-steps{% if not airflow %} --profil
 def parse_arguments(ctx, env, job_name, job_runtime, job_timeout, job_mode, cluster_name, artifact_path, poll_cluster,
                     auto_terminate, checkpoint_bucket, shutdown, cicd, airflow, dryrun, job_args, job_configs,
                     main_class):
-    handle_job_request(ctx.params, None)
+    handle_job_request(ctx.params)
 
 
-def handle_job_request(params, api):
+def handle_job_request(params, api=None):
     config = collections.OrderedDict(sorted(copy.deepcopy(params).items()))
     extract_keys = ['env', 'job_name', 'job_runtime', 'job_timeout', 'cluster_name', 'artifact_path', 'poll_cluster',
                     'auto_terminate', 'checkpoint_bucket', 'shutdown', 'cicd', 'airflow', 'dryrun']
