@@ -91,9 +91,9 @@ class AWSApi(object):
 
         for cluster_details in clusters:
             config['clust_id'] = cluster_details['id']
-            logging.info('\n\nTerminating cluster: {}\n\n'.format(json.dumps(cluster_details)))
+            logging.info('\nTerminating cluster: {}\n'.format(json.dumps(cluster_details)))
             term_command = terminate_template.render(config)
-            logging.info(term_command)
+            logging.info('\n{}\n'.format(term_command))
             run_cli_cmd(term_command)
 
     def get_remote_state_values(self, env, s3_key, output_keys):
