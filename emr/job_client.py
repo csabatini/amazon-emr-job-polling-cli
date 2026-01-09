@@ -2,9 +2,9 @@ import click
 import json
 import logging
 import pytz
-import requests
 import sys
 import time
+import grequests
 from datetime import datetime
 from jinja2 import Template
 
@@ -74,24 +74,32 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_timeout, cluster_nam
             {'runtime': job_runtime, 'bucket': config['artifact_parts'][0], 'key': config['artifact_parts'][1]}
 
         api_log = "environment={}, cluster={}, job={}, action={}, bucket={}, key={}, ip={}, status_code={}, message={}"
-        status_code_assertion = 'Excepted 200 but found {} HTTP status code'
+
+        # download artifacts and install dependencies to the EMR nodes by calling the bootstrapped web service
+        download_requests = []
+        install_requests = []
         for ip in private_ips:
-            r = requests.post('http://{}:8080/download'.format(ip), json=artifact_payload)
-            log_msg = api_log.format(env, cluster_name, job_name, 'download', config['artifact_parts'][0],
-                                     config['artifact_parts'][1], ip, r.status_code, r.json()['message'])
-            log_assertion(r.status_code == 200, log_msg, status_code_assertion.format(r.status_code))
+            if dryrun:
+                continue
+            r = grequests.post('http://{}:8080/download'.format(ip), json=artifact_payload)
+            download_requests.append(r)
             if job_runtime.lower() == 'python':
-                r = requests.get('http://{}:8080/requirements'.format(ip))
-                log_msg = api_log.format(env, cluster_name, job_name, 'requirements', config['artifact_parts'][0],
-                                         config['artifact_parts'][1], ip, r.status_code, r.json()['message'])
-                log_assertion(r.status_code == 200, log_msg, status_code_assertion.format(r.status_code))
+                r = grequests.get('http://{}:8080/requirements'.format(ip))
+                install_requests.append(r)
+
+        download_responses = zip(private_ips, grequests.map(download_requests, size=7))
+        validate_responses(download_responses, api_log, config, 'download')
+
+        install_responses = zip(private_ips, grequests.map(install_requests, size=7))
+        validate_responses(install_responses, api_log, config, 'install')
 
         cli_cmd = emr_add_step_template.render(config)
         print '\n\n{}'.format(cli_cmd)
-        output = run_cli_cmd(cli_cmd)
-        print output
-        log_msg = "environment={}, cluster={}, job={}, action=add-job-step".format(env, cluster_name, job_name)
-        log_assertion('StepIds' in json.loads(output).keys(), log_msg, 'Key \'StepIds\' not found in shell output')
+        if not dryrun:
+            output = run_cli_cmd(cli_cmd)
+            print output
+            log_msg = "environment={}, cluster={}, job={}, action=add-job-step".format(env, cluster_name, job_name)
+            log_assertion('StepIds' in json.loads(output).keys(), log_msg, 'Key \'StepIds\' not found in shell output')
 
     if poll_cluster:  # monitor state of the EMR Steps (Spark Jobs)
         minutes_elapsed = 0
@@ -125,6 +133,15 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_timeout, cluster_nam
         log_msg = "environment={}, cluster={}, job={}, action=exceeded-timeout, minutes={}" \
             .format(env, cluster_name, job_name, job_timeout)
         log_assertion(minutes_elapsed < job_timeout, log_msg, 'Job exceeded timeout {}'.format(job_timeout))
+
+
+def validate_responses(responses, api_log, config, action):
+    status_code_assertion = 'Excepted 200 but found {} HTTP status code'
+    for resp in responses:
+        log_msg = api_log.format(config['env'], config['cluster_name'], config['job_name'], action,
+                                 config['artifact_parts'][0], config['artifact_parts'][1], resp[0], resp[1].status_code,
+                                 try_response_json_lookup(resp[1], 'message'))
+        log_assertion(resp[1].status_code == 200, log_msg, status_code_assertion.format(resp[1].status_code))
 
 
 def cluster_step_metrics(step_info):
