@@ -55,6 +55,7 @@ def handle_job_request(params, api):
     # determine aws profile to use for AWSApi
     config['profile'] = get_aws_profile(env, airflow, cicd)
     checkpoint_bucket = checkpoint_bucket if checkpoint_bucket else '{}-checkpoints'.format(env)
+    config['checkpoint_bucket'] = checkpoint_bucket
     aws_api = api if api is not None else AWSApi(config['profile'])
 
     # get existing cluster info
