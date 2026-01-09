@@ -22,29 +22,38 @@ emr_add_step_template = Template('aws emr add-steps{% if not airflow %} --profil
               help='Environment to deploy to (required).')
 @click.option('--job-name', help='Name for the EMR Step & Spark job.')
 @click.option('--job-runtime', default='scala', help='Runtime for Spark, should be either Scala or Python.')
-@click.option('--job-args', default='', help='Extra arguments for the Spark application.')
 @click.option('--job-timeout', default=60, help='Spark job timeout in minutes.')
 @click.option('--cluster-name', default='DataPipeline', help='Name for the EMR cluster.')
-@click.option('--main-class', help='Main class of the Spark application.')
 @click.option('--artifact-path', help='Amazon S3 path to the Spark artifact.')
-@click.option('--h2o-backend', is_flag=True, help='Indicates that the Spark job uses the H2O backend.')
 @click.option('--poll-cluster', is_flag=True, help='Option to poll the cluster for job state (completed/failed).')
 @click.option('--auto-terminate', is_flag=True, help='Terminate the cluster after the Spark job finishes.')
+@click.option('--cicd', is_flag=True, help='Indicator for deployment from gocd; uses IAM profile auth.')
 @click.option('--airflow', is_flag=True, help='Indicator for deployment from airflow; uses EC2 instance role auth.')
 @click.option('--dryrun', is_flag=True, help='Print out the EMR command without actually running it.')
-def handle_job_request(ctx, env, job_name, job_runtime, job_args, job_timeout, cluster_name, main_class,
-                       artifact_path, h2o_backend, poll_cluster, auto_terminate, airflow, dryrun):
+@click.option('--job-args', default='', help='Extra arguments for the Spark application.')
+@click.option('--main-class', help='Main class of the Spark application.')
+@click.option('--h2o-backend', is_flag=True, help='Indicates that the Spark job uses the H2O backend.')
+def parse_arguments(ctx, env, job_name, job_runtime, job_timeout, cluster_name, artifact_path, poll_cluster,
+                    auto_terminate, cicd, airflow, dryrun, job_args, main_class, h2o_backend):
+    handle_job_request(ctx, env, job_name, job_runtime, job_timeout, cluster_name, artifact_path, poll_cluster,
+                       auto_terminate, cicd, airflow, dryrun, None, job_args, main_class, h2o_backend)
+
+
+def handle_job_request(ctx, env, job_name, job_runtime, job_timeout, cluster_name, artifact_path, poll_cluster,
+                       auto_terminate, cicd, airflow, dryrun, api, job_args=None, main_class=None, h2o_backend=None):
     config = ctx.params
-    config['profile'] = profiles[env]
     config['artifact_parts'] = get_artifact_parts(artifact_path)
-    # initialize the aws clients
-    s3_client, emr_client = get_clients(None if airflow else profiles[env])
+
+    # determine aws profile to use for AWSApi
+    config['profile'] = get_aws_profile(env, airflow, cicd)
+    aws_api = api if api is not None else AWSApi(config['profile'])
 
     # get existing cluster info
-    cluster_info = get_emr_cluster_with_name(emr_client, cluster_name)
+    cluster_info = aws_api.get_emr_cluster_with_name(cluster_name)
     log_msg = "environment={}, cluster={}, job={}, action=get-clusters, count={}, clusterList={}" \
         .format(env, cluster_name, job_name, len(cluster_info), json.dumps(cluster_info))
-    log_assertion(len(cluster_info) == 1, log_msg)
+    log_assertion(len(cluster_info) == 1, log_msg,
+                  'Expected 1 but found {} running clusters with name {}'.format(len(cluster_info), cluster_name))
 
     # add cluster id to the config
     config['cluster_id'] = cluster_info[0]['id']
@@ -98,7 +107,7 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_args, job_timeout, c
                                                                     job_metrics['minutesElapsed']))
             if job_metrics['state'] == 'COMPLETED':
                 if auto_terminate:
-                    terminate_clusters(emr_client, cluster_name, config)
+                    aws_api.terminate_clusters(cluster_name, config)
                 sys.exit(0)  # job successful
             elif job_metrics['state'] == 'FAILED':
                 log_msg = "environment={}, cluster={}, job={}, action=exit-failed-state, stepId={}, state={}".format(
