@@ -5,9 +5,9 @@ import json
 import time
 import pytz
 import requests
+from utils import *
 from datetime import datetime, timedelta
 from jinja2 import Template
-from utils import profiles, get_clients, get_emr_cluster_with_name, tokenize_emr_step_args, run_cli_cmd, log_assertion
 from templates import spark_template
 
 emr_add_step_template = Template('aws emr --profile {{ env }} add-steps --cluster-id {{ cluster_id }} '
@@ -18,18 +18,19 @@ emr_add_step_template = Template('aws emr --profile {{ env }} add-steps --cluste
 @click.pass_context
 @click.option('--env', prompt='Enter the environment to deploy to (qa/pre-prod/prod)',
               help='Environment to deploy to (required).')
-@click.option('--job_name', help='Name for the EMR Step & Spark job.')
-@click.option('--job_runtime', default='scala', help='Runtime for Spark, should be either Scala or Python.')
-@click.option('--job_args', default='', help='Extra arguments for the Spark application.')
-@click.option('--job_timeout', default=60, help='Spark job timeout in minutes.')
-@click.option('--cluster_name', default='DataPipeline', help='Name for the EMR cluster.')
-@click.option('--main_class', help='Main class of the Spark application.')
-@click.option('--artifact_path', help='Amazon S3 path to the Spark artifact.')
-@click.option('--h2o_backend', is_flag=True, help='Indicates that the Spark job uses the H2O backend.')
+@click.option('--job-name', help='Name for the EMR Step & Spark job.')
+@click.option('--job-runtime', default='scala', help='Runtime for Spark, should be either Scala or Python.')
+@click.option('--job-args', default='', help='Extra arguments for the Spark application.')
+@click.option('--job-timeout', default=60, help='Spark job timeout in minutes.')
+@click.option('--cluster-name', default='DataPipeline', help='Name for the EMR cluster.')
+@click.option('--main-class', help='Main class of the Spark application.')
+@click.option('--artifact-path', help='Amazon S3 path to the Spark artifact.')
+@click.option('--h2o-backend', is_flag=True, help='Indicates that the Spark job uses the H2O backend.')
 @click.option('--poll-steps', is_flag=True, help='Option to describe the state of the steps on a cluster.')
+@click.option('--auto-terminate', is_flag=True, help='Terminate the cluster after the Spark job finishes.')
 @click.option('--airflow', is_flag=True, help='Indicator for deployment from airflow; uses EC2 instance role auth.')
 def handle_job_request(ctx, env, job_name, job_runtime, job_args, job_timeout, cluster_name,
-                       main_class, artifact_path, h2o_backend, poll_steps, airflow):
+                       main_class, artifact_path, h2o_backend, poll_steps, auto_terminate, airflow):
     config = ctx.params
     config['profile'] = profiles[env]
     # initialize the aws clients
@@ -87,7 +88,8 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_args, job_timeout, c
                                                                     job_metrics['createdTime'],
                                                                     job_metrics['minutesElapsed']))
             if job_metrics['state'] == 'COMPLETED':
-                # terminate_clusters(emr_client, cluster_name, config)
+                if auto_terminate:
+                    terminate_clusters(emr_client, cluster_name, config)
                 sys.exit(0)  # job successfuly
             elif job_metrics['state'] == 'FAILED':
                 log_msg = "environment={}, cluster={}, job={}, action=exit-failed-state, stepId={}, state={}".format(

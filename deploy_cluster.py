@@ -15,7 +15,7 @@ emr_create_cli_template = Template('''aws emr create-cluster{% if not airflow %}
     \t--service-role {{ emr_service_role }}
     \t--tags env={{ env }} owner=bigdata project={{ project }} Name={{ cluster_name }}
     \t--applications Name=Hadoop Name=Spark Name=Hue 
-    \t--bootstrap-actions Path=s3://{{ env }}-sonic-artifacts/scripts/{% if job_runtime.lower() == "python" %}pyspark_bootstrap.sh,Name=PysparkBootstrap,Args=[{{ artifact_path }}]{% else %}download_service.sh,Name=S3DownloadService,Args=[{{ artifact_path }}]{% endif %} 
+    \t--bootstrap-actions Path=s3://{{ env }}-sonic-artifacts/scripts/download_service.sh,Name=S3DownloadService,Args=[{% if artifact_path %}{{ job_runtime }},{{ artifact_path }}{% endif %}]
     \t--ec2-attributes InstanceProfile={{ emr_instance_profile }},KeyName={{ emr_ssh_key_name }},SubnetIds=[\'{{ master_private_subnet_app_secondary_id }}\'],ServiceAccessSecurityGroup={{ master_emrservice_security_group_id }},EmrManagedMasterSecurityGroup={{ master_emr_security_group_id }},EmrManagedSlaveSecurityGroup={{ master_emr_security_group_id }} 
     \t--instance-groups InstanceGroupType=MASTER,InstanceCount=1,InstanceType={{ master_type }} InstanceGroupType=CORE,InstanceType={{ core_type }},InstanceCount={{ core_count }} 
     \t{% if artifact_path %}--steps Type=Spark,Name={{ job_name }},ActionOnFailure=CONTINUE,Args={{ step_args }}{% endif %}
@@ -26,18 +26,18 @@ emr_create_cli_template = Template('''aws emr create-cluster{% if not airflow %}
 @click.pass_context
 @click.option('--env', prompt='Enter the environment to deploy to (qa/pre-prod/prod)',
               help='Environment to deploy to (required).')
-@click.option('--emr_version', default='emr-5.6.0', help='Service version for EMR.')
-@click.option('--job_name', help='Name for the EMR Step & Spark job')
-@click.option('--job_runtime', default='scala', help='Runtime for Spark, should be either Scala or Python.')
-@click.option('--job_args', default='', help='Extra arguments for the Spark application.')
-@click.option('--cluster_name', default='DataPipeline', help='Name for the EMR cluster.')
+@click.option('--emr-version', default='emr-5.6.0', help='Service version for EMR.')
+@click.option('--job-name', help='Name for the EMR Step & Spark job')
+@click.option('--job-runtime', default='scala', help='Runtime for Spark, should be either Scala or Python.')
+@click.option('--job-args', default='', help='Extra arguments for the Spark application.')
+@click.option('--cluster-name', default='DataPipeline', help='Name for the EMR cluster.')
 @click.option('--project', default='know_your_customer', help='Project to tag the AWS resources with.')
-@click.option('--main_class', default='com.sonicdrivein.datapipeline.Main', help='Main class of the Spark application.')
-@click.option('--artifact_path', help='Amazon S3 path to the Spark artifact.')
-@click.option('--core_count', default=2, help='Number of core cluster nodes.')
-@click.option('--core_type', default='m3.xlarge', help='EC2 instance type for the core node(s).')
-@click.option('--master_type', default='m1.large', help='EC2 instance type for the master node.')
-@click.option('--h2o_backend', is_flag=True, help='Indicates that the Spark job uses the H2O backend.')
+@click.option('--main-class', default='com.sonicdrivein.datapipeline.Main', help='Main class of the Spark application.')
+@click.option('--artifact-path', help='Amazon S3 path to the Spark artifact.')
+@click.option('--core-count', default=2, help='Number of core cluster nodes.')
+@click.option('--core-type', default='m3.xlarge', help='EC2 instance type for the core node(s).')
+@click.option('--master-type', default='m1.large', help='EC2 instance type for the master node.')
+@click.option('--h2o-backend', is_flag=True, help='Indicates that the Spark job uses the H2O backend.')
 @click.option('--auto-terminate', 'term_choice', flag_value='auto-terminate',
               help='Terminate the cluster after the Spark job finishes.')
 @click.option('--no-auto-terminate', 'term_choice', flag_value='no-auto-terminate', default=True,
