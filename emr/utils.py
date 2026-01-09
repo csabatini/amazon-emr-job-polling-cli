@@ -22,14 +22,14 @@ class AWSApi(object):
         self.emr = self.session.client('emr')
 
     def get_emr_cluster_with_name(self, cluster_name):
-        running_clusters = self.emr.list_clusters(
+        active_clusters = self.emr.list_clusters(
             ClusterStates=[
                 'STARTING', 'BOOTSTRAPPING', 'RUNNING', 'WAITING'
             ]
         )
         same_name_clusters = \
-            [{'id': c['Id'], 'name': c['Name'], 'state': c['Status']['State']} for c in running_clusters['Clusters']
-             if c['Name'] == cluster_name]
+            [{'id': c['Id'], 'name': c['Name'], 'state': c['Status']['State']}
+             for c in active_clusters['Clusters'] if c['Name'] == cluster_name]
         return same_name_clusters
 
     def has_s3_checkpoints(self, env, bucket, job):
@@ -38,24 +38,32 @@ class AWSApi(object):
             Prefix=job + '/'
         )['KeyCount']
         result = numObjects > 1
-        logging.info(
-            "environment={0}, job={1}, action=check-job-has-checkpoints, bucket={2}, numObjects={3}, result={4}" \
-                .format(env, job, bucket, numObjects, result) # don't count single folder metadata object
-        )
+        # don't count single folder metadata object
+        logging.info('environment={0}, job={1}, action='
+                     'check-job-has-checkpoints, bucket={2}, numObjects={3}, '
+                     'result={4}'.format(env, job, bucket, numObjects, result))
         return result
 
     def is_cluster_active(self, cluster_name):
         return len(self.get_emr_cluster_with_name(cluster_name)) == 1
 
     def list_running_cluster_instances(self, cluster_id):
-        return self.emr.list_instances(ClusterId=cluster_id, InstanceStates=['RUNNING'])
+        return self.emr.list_instances(
+            ClusterId=cluster_id, InstanceStates=['RUNNING'])
 
     def list_cluster_steps(self, cluster_id, job_name, active_only=False):
 
         if active_only:
             states = ['PENDING', 'RUNNING']
         else:
-            states = ['PENDING', 'CANCEL_PENDING', 'RUNNING', 'COMPLETED', 'CANCELLED', 'FAILED', 'INTERRUPTED']
+            states = [
+                'PENDING',
+                'CANCEL_PENDING',
+                'RUNNING',
+                'COMPLETED',
+                'CANCELLED',
+                'FAILED',
+                'INTERRUPTED']
 
         active_jobs = self.emr.list_steps(
             ClusterId=cluster_id,
@@ -71,13 +79,20 @@ class AWSApi(object):
         logging.info(output)
         log_msg = "environment={}, cluster={}, job={}, action=add-job-step" \
             .format(config['env'], config['cluster_name'], job_name)
-        log_assertion('StepIds' in json.loads(output).keys(), log_msg, 'Key \'StepIds\' not found in shell output')
+        log_assertion('StepIds' in output, log_msg,
+                      'StepIds not found in console output')
 
     def put_job_shutdown_marker(self, bucket, job_name):
         key = '{}.shutdown.txt'.format(job_name)
-        logging.info("awstype=s3, action=put-shutdown-marker, status=started, bucket={}, key={}".format(bucket, key))
-        self.s3.put_object(Bucket=bucket, Body='', Key=key, ServerSideEncryption='AES256')
-        logging.info("awstype=s3, action=put-shutdown-marker, status=ended, bucket={}, key={}".format(bucket, key))
+        logging.info('awstype=s3, action=put-shutdown-marker, status=started, '
+                     'bucket={}, key={}'.format(bucket, key))
+        self.s3.put_object(
+            Bucket=bucket,
+            Body='',
+            Key=key,
+            ServerSideEncryption='AES256')
+        logging.info('awstype=s3, action=put-shutdown-marker, status=ended, '
+                     'bucket={}, key={}'.format(bucket, key))
 
     def delete_job_shutdown_marker(self, bucket, job_name):
         key = '{}.shutdown.txt'.format(job_name)
@@ -89,25 +104,32 @@ class AWSApi(object):
         if response['KeyCount'] != 1:  # no kill marker to remove
             return
 
-        logging.info("awstype=s3, action=delete-shutdown-marker, status=started, bucket={}, key={}".format(bucket, key))
+        logging.info('awstype=s3, action=delete-shutdown-marker, '
+                     'status=started, bucket={}, key={}'.format(bucket, key))
         self.s3.delete_object(Bucket=bucket, Key=key)
-        logging.info("awstype=s3, action=delete-shutdown-marker, status=ended, bucket={}, key={}".format(bucket, key))
+        logging.info('awstype=s3, action=delete-shutdown-marker, '
+                     'status=ended, bucket={}, key={}'.format(bucket, key))
 
     def terminate_clusters(self, cluster_name, config):
         clusters = self.get_emr_cluster_with_name(cluster_name)
 
-        terminate_template = Template('aws emr{% if profile %} --profile {{ profile }}{% endif %} '
-                                      'terminate-clusters --cluster-id {{ clust_id }}')
+        terminate_template = Template(
+            'aws emr{% if profile %} --profile {{ profile }}{% endif %} '
+            'terminate-clusters --cluster-id {{ clust_id }}')
 
         for cluster_details in clusters:
             config['clust_id'] = cluster_details['id']
-            logging.info('\nTerminating cluster: {}\n'.format(json.dumps(cluster_details)))
+            logging.info(
+                '\nTerminating cluster: {}\n'.format(
+                    json.dumps(cluster_details)))
             term_command = terminate_template.render(config)
             logging.info('\n{}\n'.format(term_command))
             run_cli_cmd(term_command)
 
     def get_remote_state_values(self, env, s3_key, output_keys):
-        obj = self.s3.get_object(Bucket='{}-sonic-terraform-state-files'.format(env), Key='{}-{}'.format(env, s3_key))
+        obj = self.s3.get_object(
+            Bucket='{}-sonic-terraform-state-files'.format(env),
+            Key='{}-{}'.format(env, s3_key))
 
         state = json.loads(obj['Body'].read())
         outputs = state['modules'][0]['outputs']
@@ -117,12 +139,19 @@ class AWSApi(object):
                 result[k] = outputs[k]['value']
         return result
 
+
 def run_cli_cmd(cmd):
-    return check_output(cmd.split(), shell=True) if sys.platform.startswith('win') else check_output(cmd.split())
+    return check_output(cmd.split()) if not sys.platform.startswith('win') \
+        else check_output(cmd.split(), shell=True)
+
+
+def tokenize_emr_step_args(arguments):
+    return '[{}]'.format(','.join(arguments.split()))
 
 
 def get_artifact_parts(artifact_path):
-    return None if not artifact_path else artifact_path.replace('s3://', '').split('/', 1)
+    return None if not artifact_path \
+        else artifact_path.replace('s3://', '').split('/', 1)
 
 
 def load_config(file_name, env_key):
@@ -161,7 +190,3 @@ def try_response_json_lookup(response, key):
         return 'none'
     except ValueError:
         return 'none'
-
-
-def tokenize_emr_step_args(arguments):
-    return '[{}]'.format(','.join(arguments.split()))
