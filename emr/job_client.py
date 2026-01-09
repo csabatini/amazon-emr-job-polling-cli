@@ -74,7 +74,7 @@ def handle_job_request(params, api):
         poll_cluster = True if not dryrun else False
         # put marker file in s3 to initiate streaming job shutdown
         shutdown_initiated = shutdown_streaming_job(aws_api, config, job_name, checkpoint_bucket)
-        if shutdown_initiated:
+        if not shutdown_initiated:
             cluster_job_ids = []
 
         # once the streaming job shutdown finishes, this job will copy the spark checkpoints to s3

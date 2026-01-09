@@ -27,6 +27,13 @@ class AWSApi(object):
              if c['Name'] == cluster_name]
         return same_name_clusters
 
+    def has_s3_checkpoints(self, checkpoint_bucket, job_name):
+        s3_response = self.s3.list_objects_v2(
+            Bucket=checkpoint_bucket,
+            Prefix=job_name + '/'
+        )
+        return s3_response['KeyCount'] > 0
+
     def is_cluster_active(self, cluster_name):
         return len(self.get_emr_cluster_with_name(cluster_name)) == 1
 
