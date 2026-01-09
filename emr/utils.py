@@ -27,12 +27,16 @@ class AWSApi(object):
              if c['Name'] == cluster_name]
         return same_name_clusters
 
-    def has_s3_checkpoints(self, bucket, job):
-        result = self.s3.list_objects_v2(
+    def has_s3_checkpoints(self, env, bucket, job):
+        numObjects = self.s3.list_objects_v2(
             Bucket=bucket,
             Prefix=job + '/'
-        )['KeyCount'] > 0
-        logging.info("job={0}, action=check-job-has-checkpoints, bucket={1}, result={2}".format(job, bucket, result))
+        )['KeyCount']
+        result = numObjects > 1
+        logging.info(
+            "environment={0}, job={1}, action=check-job-has-checkpoints, bucket={2}, numObjects={3}, result={4}" \
+                .format(env, job, bucket, numObjects, result) # don't count single folder metadata object
+        )
         return result
 
     def is_cluster_active(self, cluster_name):
