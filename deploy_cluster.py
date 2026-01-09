@@ -29,6 +29,7 @@ emr_create_cli_template = Template('''aws emr create-cluster{% if not airflow %}
 @click.option('--emr_version', default='emr-5.6.0', help='Service version for EMR.')
 @click.option('--job_name', help='Name for the EMR Step & Spark job')
 @click.option('--job_runtime', default='scala', help='Runtime for Spark, should be either Scala or Python.')
+@click.option('--job_args', default='', help='Extra arguments for the Spark application.')
 @click.option('--cluster_name', default='DataPipeline', help='Name for the EMR cluster.')
 @click.option('--project', default='know_your_customer', help='Project to tag the AWS resources with.')
 @click.option('--main_class', default='com.sonicdrivein.datapipeline.Main', help='Main class of the Spark application.')
@@ -43,7 +44,7 @@ emr_create_cli_template = Template('''aws emr create-cluster{% if not airflow %}
               help='Keep the cluster running after the Spark job finishes (default).')
 @click.option('--cicd', is_flag=True, help='Indicator for deployment from gocd; uses IAM profile auth.')
 @click.option('--airflow', is_flag=True, help='Indicator for deployment from airflow; uses EC2 instance role auth.')
-def deploy(ctx, env, emr_version, job_name, job_runtime, cluster_name, project, main_class,
+def deploy(ctx, env, emr_version, job_name, job_runtime, job_args, cluster_name, project, main_class,
            artifact_path, core_count, core_type, master_type, h2o_backend, term_choice, cicd, airflow):
     config = ctx.params
     assert job_runtime.lower() in valid_runtimes, 'job_runtime must be either Scala or Python'

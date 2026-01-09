@@ -19,6 +19,7 @@ emr_add_step_template = Template('aws emr --profile {{ env }} add-steps --cluste
               help='Environment to deploy to (required).')
 @click.option('--job_name', help='Name for the EMR Step & Spark job.')
 @click.option('--job_runtime', default='scala', help='Runtime for Spark, should be either Scala or Python.')
+@click.option('--job_args', default='', help='Extra arguments for the Spark application.')
 @click.option('--job_timeout', default=120, help='Spark job timeout in minutes.')
 @click.option('--cluster_name', default='DataPipeline', help='Name for the EMR cluster.')
 @click.option('--main_class', default='com.sonicdrivein.datapipeline.Main', help='Main class of the Spark application.')
@@ -26,7 +27,7 @@ emr_add_step_template = Template('aws emr --profile {{ env }} add-steps --cluste
 @click.option('--h2o_backend', is_flag=True, help='Indicates that the Spark job uses the H2O backend.')
 @click.option('--poll-steps', is_flag=True, help='Option to describe the state of the steps on a cluster.')
 @click.option('--airflow', is_flag=True, help='Indicator for deployment from airflow; uses EC2 instance role auth.')
-def handle_job_request(ctx, env, job_name, job_runtime, job_timeout, cluster_name,
+def handle_job_request(ctx, env, job_name, job_runtime, job_args, job_timeout, cluster_name,
                        main_class, artifact_path, h2o_backend, poll_steps, airflow):
     config = ctx.params
     config['profile'] = profiles[env]
@@ -61,7 +62,7 @@ def handle_job_request(ctx, env, job_name, job_runtime, job_timeout, cluster_nam
                          "minutesElapsed={}".format(env, job_metrics['id'], job_metrics['name'], job_metrics['state'],
                                                     job_metrics['createdTime'], job_metrics['minutesElapsed']))
             if job_metrics['state'] == 'COMPLETED':
-                terminate_clusters(emr_client, cluster_name, config)
+                # terminate_clusters(emr_client, cluster_name, config)
                 sys.exit(0)  # job successfuly
             elif job_metrics['state'] == 'FAILED':
                 raise ValueError('Job in unexpected state: {}'.format(job_metrics['state']))
