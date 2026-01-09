@@ -65,9 +65,9 @@ class AWSApi(object):
 
     def put_job_shutdown_marker(self, bucket, job_name):
         key = '{}.shutdown.txt'.format(job_name)
-        logging.info("awstype=s3, action=put-kill-marker, status=started, bucket={}, key={}".format(bucket, key))
+        logging.info("awstype=s3, action=put-shutdown-marker, status=started, bucket={}, key={}".format(bucket, key))
         self.s3.put_object(Bucket=bucket, Body='', Key=key, ServerSideEncryption='AES256')
-        logging.info("awstype=s3, action=put-kill-marker, status=ended, bucket={}, key={}".format(bucket, key))
+        logging.info("awstype=s3, action=put-shutdown-marker, status=ended, bucket={}, key={}".format(bucket, key))
 
     def delete_job_shutdown_marker(self, bucket, job_name):
         key = '{}.shutdown.txt'.format(job_name)
@@ -79,9 +79,9 @@ class AWSApi(object):
         if response['KeyCount'] != 1:  # no kill marker to remove
             return
 
-        logging.info("awstype=s3, action=delete-kill-marker, status=started, bucket={}, key={}".format(bucket, key))
+        logging.info("awstype=s3, action=delete-shutdown-marker, status=started, bucket={}, key={}".format(bucket, key))
         self.s3.delete_object(Bucket=bucket, Key=key)
-        logging.info("awstype=s3, action=delete-kill-marker, status=ended, bucket={}, key={}".format(bucket, key))
+        logging.info("awstype=s3, action=delete-shutdown-marker, status=ended, bucket={}, key={}".format(bucket, key))
 
     def terminate_clusters(self, cluster_name, config):
         clusters = self.get_emr_cluster_with_name(cluster_name)
