@@ -155,7 +155,9 @@ def log_assertion(condition, log_msg, description):
 def try_response_json_lookup(response, key):
     try:
         return response.json()[key]
-    except ValueError, e:
+    except AttributeError:
+        return 'none'
+    except ValueError:
         return 'none'
 
 
