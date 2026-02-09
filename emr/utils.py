@@ -99,7 +99,7 @@ def load_config(file_name, env_key):
         with open(file_path, 'r') as f:
             return yaml.safe_load(f.read())
     except (OSError, IOError) as e:
-        logger.exception('Failed to read file: {}'.format(file_path), e)
+        logger.exception('Failed to read file: {}'.format(file_path))
         return dict()
 
 
