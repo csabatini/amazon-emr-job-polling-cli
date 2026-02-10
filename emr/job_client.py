@@ -12,7 +12,7 @@ from functools import reduce
 
 import emr.utils
 from emr.templates import spark_template, add_spark_step_template
-from emr.utils import valid_runtimes
+from emr.constants import VALID_RUNTIMES, EXTRACT_KEYS
 
 
 @click.command()
@@ -66,27 +66,16 @@ def parse_arguments(context, env, profile, job_name, job_runtime, job_timeout,
 
 def handle_job_request(params):
     config = collections.OrderedDict(sorted(params.items()))
-    extract_keys = [
-        'env',
-        'profile',
-        'job_name',
-        'job_runtime',
-        'job_timeout',
-        'cluster_name',
-        'artifact_path',
-        'poll_cluster',
-        'terminate',
-        'dryrun']
 
     artifact_path, cluster_name, dryrun, env, job_name, job_runtime, \
         job_timeout, poll_cluster, profile, terminate = \
-        [v for k, v in six.iteritems(config) if k in extract_keys]
+        [v for k, v in six.iteritems(config) if k in EXTRACT_KEYS]
 
     log_msg = ('environment={}, cluster={}, job={}, action=check-runtime, '
                'runtime={}'.format(env, cluster_name, job_name, job_runtime))
     emr.utils.log_assertion(
-        job_runtime.lower() in valid_runtimes, log_msg,
-        '--job-runtime should be in {}'.format(valid_runtimes))
+        job_runtime.lower() in VALID_RUNTIMES, log_msg,
+        '--job-runtime should be in {}'.format(VALID_RUNTIMES))
 
     aws_api = emr.utils.AWSApi(profile) if profile else emr.utils.AWSApi()
 

@@ -10,8 +10,6 @@ import boto3
 import yaml
 from jinja2 import Template
 
-valid_runtimes = ['scala', 'java', 'python']
-
 
 class AWSApi(object):
     def __init__(self, profile=None):
