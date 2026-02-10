@@ -65,6 +65,28 @@ def parse_arguments(context, env, profile, job_name, job_runtime, job_timeout,
 
 
 def handle_job_request(params):
+    """Handle EMR job request including submission, polling, and termination.
+
+    Args:
+        params (dict): Job parameters containing:
+            - env: Environment name
+            - profile: AWS profile (optional)
+            - job_name: Name of the EMR step/job
+            - job_runtime: Runtime type ('scala', 'java', or 'python')
+            - job_timeout: Timeout in minutes (optional)
+            - cluster_name: Name of the EMR cluster
+            - artifact_path: S3 path to Spark artifact (optional)
+            - poll_cluster: Whether to poll for job completion
+            - terminate: Whether to terminate cluster after completion
+            - dryrun: Whether to skip actual execution
+
+    Returns:
+        str: The AWS CLI command used to submit the job step, or empty string.
+
+    Raises:
+        ValueError: If runtime is invalid, cluster not found,
+            job fails, or timeout exceeded.
+    """
     config = collections.OrderedDict(sorted(params.items()))
 
     artifact_path, cluster_name, dryrun, env, job_name, job_runtime, \
@@ -185,6 +207,19 @@ def handle_job_request(params):
 
 
 def cluster_step_metrics(step_info):
+    """Extract metrics from an EMR cluster step.
+
+    Args:
+        step_info (dict): Step information dictionary from EMR API response.
+
+    Returns:
+        dict: A dictionary containing step metrics with keys:
+            - id: Step ID
+            - name: Step name
+            - state: Current step state
+            - createdTime: Creation timestamp (YYYY-MM-DDTHH-MM-SS format)
+            - minutesElapsed: Minutes elapsed since creation
+    """
     created_dt = step_info['Status']['Timeline']['CreationDateTime']
     str_created_dt = created_dt.strftime("%Y-%m-%dT%H-%M-%S")
     seconds_elapsed = \
