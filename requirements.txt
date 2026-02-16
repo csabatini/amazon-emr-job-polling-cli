@@ -11,7 +11,7 @@ colorama==0.4.6
 coverage==7.13.4
 distlib==0.4.0
 docutils==0.19
-filelock==3.20.3
+filelock==3.24.2
 future==1.0.0
 gevent==25.9.1
 greenlet==3.3.1
